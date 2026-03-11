@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Agentic AI Revenue Platform"
+version = "1.0.0"
+id = "artifacts/revenue-platform"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+localPort = 21649
+name = "web"
+paths = ["/"]
+
+[services.development]
+run = "pnpm --filter @workspace/revenue-platform run dev"
+
+[services.env]
+PORT = "21649"
+BASE_PATH = "/"
+
+[services.production]
+build = ["pnpm", "--filter", "@workspace/revenue-platform", "run", "build"]
+publicDir = "artifacts/revenue-platform/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"

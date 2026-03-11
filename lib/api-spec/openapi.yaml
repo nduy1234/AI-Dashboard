@@ -1,15 +1,36 @@
 openapi: 3.1.0
 info:
-  # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Agentic AI Revenue Platform API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: Auth
+    description: Browser and mobile authentication endpoints.
+  - name: dashboard
+    description: Dashboard metrics and analytics
+  - name: leads
+    description: Lead management
+  - name: campaigns
+    description: Campaign management
+  - name: emailAccounts
+    description: Email account management
+  - name: integrations
+    description: Integration management
+  - name: analytics
+    description: Analytics data
+  - name: ai
+    description: AI generation endpoints
+  - name: settings
+    description: Settings and team management
+  - name: knowledgeBase
+    description: Knowledge base management
+  - name: agentLogs
+    description: Agent activity logs
 paths:
   /healthz:
     get:
@@ -24,7 +45,850 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+
+  /auth/user:
+    get:
+      tags: [Auth]
+      operationId: getCurrentAuthUser
+      summary: Get the currently authenticated user
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '200':
+          description: Auth status resolved successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthUserEnvelope'
+  /login:
+    get:
+      tags: [Auth]
+      operationId: beginBrowserLogin
+      summary: Start the browser OIDC login flow
+      parameters:
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '302':
+          description: Redirect to the OIDC authorization endpoint.
+  /callback:
+    get:
+      tags: [Auth]
+      operationId: handleBrowserLoginCallback
+      summary: Complete the browser OIDC login flow
+      parameters:
+        - name: code
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: iss
+          in: query
+          required: false
+          schema:
+            type: string
+            format: uri
+      responses:
+        '302':
+          description: Redirect to returnTo path.
+  /logout:
+    get:
+      tags: [Auth]
+      operationId: logoutBrowserSession
+      summary: Clear session and begin OIDC logout
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+        - $ref: '#/components/parameters/SessionCookie'
+      responses:
+        '302':
+          description: Redirect to OIDC logout.
+  /mobile-auth/token-exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeMobileAuthorizationCode
+      summary: Exchange a mobile OIDC code for a session token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileTokenExchangeRequest'
+      responses:
+        '200':
+          description: Session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileTokenExchangeSuccess'
+        '400':
+          description: Missing or invalid required fields.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /mobile-auth/logout:
+    post:
+      tags: [Auth]
+      operationId: logoutMobileSession
+      summary: Delete a mobile session token
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationSessionHeader'
+      responses:
+        '200':
+          description: Logout processed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LogoutSuccess'
+
+  /dashboard/stats:
+    get:
+      operationId: getDashboardStats
+      tags: [dashboard]
+      summary: Get dashboard overview stats
+      responses:
+        "200":
+          description: Dashboard stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardStats"
+
+  /dashboard/charts:
+    get:
+      operationId: getDashboardCharts
+      tags: [dashboard]
+      summary: Get dashboard chart data
+      responses:
+        "200":
+          description: Chart data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardCharts"
+
+  /leads:
+    get:
+      operationId: listLeads
+      tags: [leads]
+      summary: List all leads
+      parameters:
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: source
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: search
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of leads
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Lead"
+    post:
+      operationId: createLead
+      tags: [leads]
+      summary: Create a new lead
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateLeadBody"
+      responses:
+        "201":
+          description: Lead created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+
+  /leads/{id}:
+    get:
+      operationId: getLead
+      tags: [leads]
+      summary: Get a lead by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Lead details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    patch:
+      operationId: updateLead
+      tags: [leads]
+      summary: Update a lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateLeadBody"
+      responses:
+        "200":
+          description: Lead updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Lead"
+    delete:
+      operationId: deleteLead
+      tags: [leads]
+      summary: Delete a lead
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Lead deleted
+
+  /leads/import:
+    post:
+      operationId: importLeads
+      tags: [leads]
+      summary: Import leads from Apollo or CRM
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ImportLeadsBody"
+      responses:
+        "200":
+          description: Import result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ImportLeadsResult"
+
+  /leads/verify:
+    post:
+      operationId: verifyLeadEmails
+      tags: [leads]
+      summary: Verify lead emails
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyEmailsBody"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyEmailsResult"
+
+  /campaigns:
+    get:
+      operationId: listCampaigns
+      tags: [campaigns]
+      summary: List all campaigns
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: List of campaigns
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Campaign"
+    post:
+      operationId: createCampaign
+      tags: [campaigns]
+      summary: Create a new campaign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateCampaignBody"
+      responses:
+        "201":
+          description: Campaign created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}:
+    get:
+      operationId: getCampaign
+      tags: [campaigns]
+      summary: Get a campaign by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign details
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    patch:
+      operationId: updateCampaign
+      tags: [campaigns]
+      summary: Update a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateCampaignBody"
+      responses:
+        "200":
+          description: Campaign updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+    delete:
+      operationId: deleteCampaign
+      tags: [campaigns]
+      summary: Delete a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Campaign deleted
+
+  /campaigns/{id}/launch:
+    post:
+      operationId: launchCampaign
+      tags: [campaigns]
+      summary: Launch a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign launched
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /campaigns/{id}/pause:
+    post:
+      operationId: pauseCampaign
+      tags: [campaigns]
+      summary: Pause a campaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign paused
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Campaign"
+
+  /email-accounts:
+    get:
+      operationId: listEmailAccounts
+      tags: [emailAccounts]
+      summary: List email sending accounts
+      responses:
+        "200":
+          description: List of email accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/EmailAccount"
+    post:
+      operationId: createEmailAccount
+      tags: [emailAccounts]
+      summary: Add a new email account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateEmailAccountBody"
+      responses:
+        "201":
+          description: Email account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailAccount"
+
+  /email-accounts/{id}:
+    delete:
+      operationId: deleteEmailAccount
+      tags: [emailAccounts]
+      summary: Delete an email account
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Email account deleted
+
+  /integrations:
+    get:
+      operationId: listIntegrations
+      tags: [integrations]
+      summary: List all integrations
+      responses:
+        "200":
+          description: List of integrations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Integration"
+
+  /integrations/{id}:
+    patch:
+      operationId: updateIntegration
+      tags: [integrations]
+      summary: Update integration config
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateIntegrationBody"
+      responses:
+        "200":
+          description: Integration updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Integration"
+
+  /analytics/overview:
+    get:
+      operationId: getAnalyticsOverview
+      tags: [analytics]
+      summary: Get analytics overview data
+      parameters:
+        - name: period
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Analytics overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnalyticsOverview"
+
+  /analytics/campaigns:
+    get:
+      operationId: getAnalyticsCampaigns
+      tags: [analytics]
+      summary: Get per-campaign analytics
+      responses:
+        "200":
+          description: Campaign analytics
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CampaignAnalytics"
+
+  /ai/personalize:
+    post:
+      operationId: aiPersonalizeEmail
+      tags: [ai]
+      summary: Generate personalized email using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIPersonalizeBody"
+      responses:
+        "200":
+          description: Personalized email content
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIPersonalizeResult"
+
+  /ai/generate-sequence:
+    post:
+      operationId: aiGenerateSequence
+      tags: [ai]
+      summary: Generate an email sequence using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIGenerateSequenceBody"
+      responses:
+        "200":
+          description: Generated email sequence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIGenerateSequenceResult"
+
+  /ai/qualify-lead:
+    post:
+      operationId: aiQualifyLead
+      tags: [ai]
+      summary: Qualify a lead using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIQualifyLeadBody"
+      responses:
+        "200":
+          description: Qualification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIQualifyLeadResult"
+
+  /ai/chat:
+    post:
+      operationId: aiChat
+      tags: [ai]
+      summary: AI chat for website widget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIChatBody"
+      responses:
+        "200":
+          description: Chat response
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIChatResult"
+
+  /ai/reactivation:
+    post:
+      operationId: aiGenerateReactivation
+      tags: [ai]
+      summary: Generate reactivation messages using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AIReactivationBody"
+      responses:
+        "200":
+          description: Reactivation messages
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIReactivationResult"
+
+  /knowledge-base:
+    get:
+      operationId: listKnowledgeBase
+      tags: [knowledgeBase]
+      summary: List knowledge base documents
+      responses:
+        "200":
+          description: List of documents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KnowledgeBaseDoc"
+    post:
+      operationId: createKnowledgeBaseDoc
+      tags: [knowledgeBase]
+      summary: Upload a knowledge base document
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateKnowledgeBaseDocBody"
+      responses:
+        "201":
+          description: Document created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/KnowledgeBaseDoc"
+
+  /knowledge-base/{id}:
+    delete:
+      operationId: deleteKnowledgeBaseDoc
+      tags: [knowledgeBase]
+      summary: Delete a knowledge base document
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Document deleted
+
+  /agent-logs:
+    get:
+      operationId: listAgentLogs
+      tags: [agentLogs]
+      summary: List agent activity logs
+      parameters:
+        - name: agentType
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: List of agent logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentLog"
+
+  /settings/team:
+    get:
+      operationId: listTeamMembers
+      tags: [settings]
+      summary: List team members
+      responses:
+        "200":
+          description: List of team members
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TeamMember"
+
+  /settings/api-keys:
+    get:
+      operationId: listApiKeys
+      tags: [settings]
+      summary: List API keys
+      responses:
+        "200":
+          description: List of API keys
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApiKey"
+    post:
+      operationId: createApiKey
+      tags: [settings]
+      summary: Create a new API key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateApiKeyBody"
+      responses:
+        "201":
+          description: API key created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiKey"
+
+  /settings/api-keys/{id}:
+    delete:
+      operationId: deleteApiKey
+      tags: [settings]
+      summary: Delete an API key
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: API key deleted
+
+  /settings/prompt-templates:
+    get:
+      operationId: listPromptTemplates
+      tags: [settings]
+      summary: List prompt templates
+      responses:
+        "200":
+          description: List of templates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PromptTemplate"
+    post:
+      operationId: createPromptTemplate
+      tags: [settings]
+      summary: Create a prompt template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreatePromptTemplateBody"
+      responses:
+        "201":
+          description: Template created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptTemplate"
+
+  /settings/prompt-templates/{id}:
+    patch:
+      operationId: updatePromptTemplate
+      tags: [settings]
+      summary: Update a prompt template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdatePromptTemplateBody"
+      responses:
+        "200":
+          description: Template updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PromptTemplate"
+    delete:
+      operationId: deletePromptTemplate
+      tags: [settings]
+      summary: Delete a prompt template
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "204":
+          description: Template deleted
+
 components:
+  parameters:
+    AuthorizationSessionHeader:
+      name: Authorization
+      in: header
+      required: false
+      schema:
+        type: string
+    SessionCookie:
+      name: sid
+      in: cookie
+      required: false
+      schema:
+        type: string
+
   schemas:
     HealthStatus:
       type: object
@@ -34,3 +898,762 @@ components:
       required:
         - status
 
+    AuthUser:
+      type: object
+      required: [id, email, firstName, lastName, profileImageUrl]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+          format: email
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+    AuthUserEnvelope:
+      type: object
+      required: [user]
+      properties:
+        user:
+          oneOf:
+            - $ref: '#/components/schemas/AuthUser'
+            - type: 'null'
+    MobileTokenExchangeRequest:
+      type: object
+      required: [code, code_verifier, redirect_uri, state]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        code_verifier:
+          type: string
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          format: uri
+        state:
+          type: string
+          minLength: 1
+        nonce:
+          type: string
+          minLength: 1
+    MobileTokenExchangeSuccess:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+    LogoutSuccess:
+      type: object
+      required: [success]
+      properties:
+        success:
+          type: boolean
+          const: true
+    ErrorEnvelope:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    DashboardStats:
+      type: object
+      required: [totalProspects, emailsSent, replyRate, meetingsBooked, reactivatedLeads, websiteConversions]
+      properties:
+        totalProspects:
+          type: integer
+        emailsSent:
+          type: integer
+        replyRate:
+          type: number
+        meetingsBooked:
+          type: integer
+        reactivatedLeads:
+          type: integer
+        websiteConversions:
+          type: integer
+
+    DashboardCharts:
+      type: object
+      required: [outboundPerformance, pipelineGenerated, conversionFunnel]
+      properties:
+        outboundPerformance:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+        pipelineGenerated:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+        conversionFunnel:
+          type: array
+          items:
+            $ref: "#/components/schemas/FunnelStep"
+
+    ChartDataPoint:
+      type: object
+      required: [label, value]
+      properties:
+        label:
+          type: string
+        value:
+          type: number
+        value2:
+          type: number
+
+    FunnelStep:
+      type: object
+      required: [stage, count]
+      properties:
+        stage:
+          type: string
+        count:
+          type: integer
+
+    Lead:
+      type: object
+      required: [id, firstName, lastName, email, company, title, status, source, createdAt]
+      properties:
+        id:
+          type: integer
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+        industry:
+          type: [string, 'null']
+        companySize:
+          type: [string, 'null']
+        engagementScore:
+          type: [integer, 'null']
+        lastContactDate:
+          type: [string, 'null']
+          format: date-time
+        verified:
+          type: boolean
+        phone:
+          type: [string, 'null']
+        linkedinUrl:
+          type: [string, 'null']
+        dealStage:
+          type: [string, 'null']
+        dealValue:
+          type: [number, 'null']
+        notes:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateLeadBody:
+      type: object
+      required: [firstName, lastName, email, company, title, source]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        title:
+          type: string
+        source:
+          type: string
+        industry:
+          type: string
+        companySize:
+          type: string
+        phone:
+          type: string
+        linkedinUrl:
+          type: string
+        dealStage:
+          type: string
+        dealValue:
+          type: number
+        notes:
+          type: string
+
+    UpdateLeadBody:
+      type: object
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        title:
+          type: string
+        status:
+          type: string
+        source:
+          type: string
+        industry:
+          type: string
+        companySize:
+          type: string
+        engagementScore:
+          type: integer
+        verified:
+          type: boolean
+        phone:
+          type: string
+        linkedinUrl:
+          type: string
+        dealStage:
+          type: string
+        dealValue:
+          type: number
+        notes:
+          type: string
+
+    ImportLeadsBody:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+        filters:
+          type: object
+          additionalProperties: true
+
+    ImportLeadsResult:
+      type: object
+      required: [imported, duplicates, total]
+      properties:
+        imported:
+          type: integer
+        duplicates:
+          type: integer
+        total:
+          type: integer
+
+    VerifyEmailsBody:
+      type: object
+      required: [leadIds]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+
+    VerifyEmailsResult:
+      type: object
+      required: [verified, invalid, total]
+      properties:
+        verified:
+          type: integer
+        invalid:
+          type: integer
+        total:
+          type: integer
+
+    Campaign:
+      type: object
+      required: [id, name, type, status, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        subject:
+          type: [string, 'null']
+        emailSequenceCount:
+          type: integer
+        leadCount:
+          type: integer
+        sentCount:
+          type: integer
+        openCount:
+          type: integer
+        replyCount:
+          type: integer
+        meetingsBooked:
+          type: integer
+        createdAt:
+          type: string
+          format: date-time
+        launchedAt:
+          type: [string, 'null']
+          format: date-time
+
+    CreateCampaignBody:
+      type: object
+      required: [name, type]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        subject:
+          type: string
+        leadIds:
+          type: array
+          items:
+            type: integer
+        emailSequence:
+          type: array
+          items:
+            type: string
+
+    UpdateCampaignBody:
+      type: object
+      properties:
+        name:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+        emailSequence:
+          type: array
+          items:
+            type: string
+
+    EmailAccount:
+      type: object
+      required: [id, email, provider, status, dailyLimit, sentToday, createdAt]
+      properties:
+        id:
+          type: integer
+        email:
+          type: string
+        provider:
+          type: string
+        status:
+          type: string
+        dailyLimit:
+          type: integer
+        sentToday:
+          type: integer
+        warmupEnabled:
+          type: boolean
+        reputation:
+          type: number
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateEmailAccountBody:
+      type: object
+      required: [email, provider]
+      properties:
+        email:
+          type: string
+        provider:
+          type: string
+        dailyLimit:
+          type: integer
+        warmupEnabled:
+          type: boolean
+
+    Integration:
+      type: object
+      required: [id, name, type, status, category]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        category:
+          type: string
+        description:
+          type: [string, 'null']
+        apiKeyConfigured:
+          type: boolean
+        lastSyncAt:
+          type: [string, 'null']
+          format: date-time
+        config:
+          type: object
+          additionalProperties: true
+
+    UpdateIntegrationBody:
+      type: object
+      properties:
+        status:
+          type: string
+        apiKey:
+          type: string
+        config:
+          type: object
+          additionalProperties: true
+
+    AnalyticsOverview:
+      type: object
+      required: [openRate, replyRate, meetingsBooked, leadConversions, revenueGenerated, emailsSent]
+      properties:
+        openRate:
+          type: number
+        replyRate:
+          type: number
+        meetingsBooked:
+          type: integer
+        leadConversions:
+          type: integer
+        revenueGenerated:
+          type: number
+        emailsSent:
+          type: integer
+        openRateHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+        replyRateHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+        meetingsHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+        revenueHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChartDataPoint"
+
+    CampaignAnalytics:
+      type: object
+      required: [campaignId, campaignName, sent, opened, replied, meetings, conversions]
+      properties:
+        campaignId:
+          type: integer
+        campaignName:
+          type: string
+        sent:
+          type: integer
+        opened:
+          type: integer
+        replied:
+          type: integer
+        meetings:
+          type: integer
+        conversions:
+          type: integer
+        revenue:
+          type: number
+
+    AIPersonalizeBody:
+      type: object
+      required: [leadId, templateType]
+      properties:
+        leadId:
+          type: integer
+        templateType:
+          type: string
+        context:
+          type: string
+        tone:
+          type: string
+
+    AIPersonalizeResult:
+      type: object
+      required: [subjectLine, firstLine, body]
+      properties:
+        subjectLine:
+          type: string
+        firstLine:
+          type: string
+        body:
+          type: string
+
+    AIGenerateSequenceBody:
+      type: object
+      required: [campaignType, targetAudience, numberOfEmails]
+      properties:
+        campaignType:
+          type: string
+        targetAudience:
+          type: string
+        numberOfEmails:
+          type: integer
+        tone:
+          type: string
+        productDescription:
+          type: string
+
+    AIGenerateSequenceResult:
+      type: object
+      required: [emails]
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/GeneratedEmail"
+
+    GeneratedEmail:
+      type: object
+      required: [order, subject, body, delay]
+      properties:
+        order:
+          type: integer
+        subject:
+          type: string
+        body:
+          type: string
+        delay:
+          type: string
+
+    AIQualifyLeadBody:
+      type: object
+      required: [companyName]
+      properties:
+        companyName:
+          type: string
+        companySize:
+          type: string
+        problem:
+          type: string
+        budget:
+          type: string
+        timeline:
+          type: string
+
+    AIQualifyLeadResult:
+      type: object
+      required: [score, recommendation, reasoning, nextSteps]
+      properties:
+        score:
+          type: integer
+        recommendation:
+          type: string
+        reasoning:
+          type: string
+        nextSteps:
+          type: array
+          items:
+            type: string
+
+    AIChatBody:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+        conversationHistory:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+        knowledgeBaseContext:
+          type: string
+
+    ChatMessage:
+      type: object
+      required: [role, content]
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+
+    AIChatResult:
+      type: object
+      required: [response, qualification]
+      properties:
+        response:
+          type: string
+        qualification:
+          type: object
+          properties:
+            isQualified:
+              type: boolean
+            score:
+              type: integer
+            suggestBooking:
+              type: boolean
+        suggestedActions:
+          type: array
+          items:
+            type: string
+
+    AIReactivationBody:
+      type: object
+      required: [leadIds, channel]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+        channel:
+          type: string
+        context:
+          type: string
+
+    AIReactivationResult:
+      type: object
+      required: [messages]
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReactivationMessage"
+
+    ReactivationMessage:
+      type: object
+      required: [leadId, channel, subject, body]
+      properties:
+        leadId:
+          type: integer
+        channel:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+
+    KnowledgeBaseDoc:
+      type: object
+      required: [id, title, type, content, createdAt]
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        type:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateKnowledgeBaseDocBody:
+      type: object
+      required: [title, type, content]
+      properties:
+        title:
+          type: string
+        type:
+          type: string
+        content:
+          type: string
+
+    AgentLog:
+      type: object
+      required: [id, agentType, action, status, timestamp]
+      properties:
+        id:
+          type: integer
+        agentType:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+        details:
+          type: [string, 'null']
+        metadata:
+          type: object
+          additionalProperties: true
+        timestamp:
+          type: string
+          format: date-time
+
+    TeamMember:
+      type: object
+      required: [id, email, role, createdAt]
+      properties:
+        id:
+          type: string
+        email:
+          type: [string, 'null']
+        firstName:
+          type: [string, 'null']
+        lastName:
+          type: [string, 'null']
+        profileImageUrl:
+          type: [string, 'null']
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    ApiKey:
+      type: object
+      required: [id, name, key, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        key:
+          type: string
+        lastUsedAt:
+          type: [string, 'null']
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+
+    CreateApiKeyBody:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+
+    PromptTemplate:
+      type: object
+      required: [id, name, type, template, createdAt]
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        type:
+          type: string
+        template:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+
+    CreatePromptTemplateBody:
+      type: object
+      required: [name, type, template]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        template:
+          type: string
+
+    UpdatePromptTemplateBody:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        template:
+          type: string

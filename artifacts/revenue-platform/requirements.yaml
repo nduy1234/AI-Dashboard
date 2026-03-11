@@ -1,0 +1,17 @@
+packages:
+  "recharts": "For beautiful dashboard and analytics data visualization"
+  "framer-motion": "For fluid page transitions and interactive micro-animations"
+  "@hookform/resolvers": "For Zod form validation in forms"
+  "date-fns": "For formatting dates in data tables and charts"
+
+images:
+  - path: "artifacts/revenue-platform/public/images/auth-bg.png"
+    description: "Abstract 3D data network mesh in deep indigo, violet, and electric blue colors, dark mode, glowing nodes, high tech professional corporate SaaS vibe, clean"
+    aspect_ratio: "16:9"
+  - path: "artifacts/revenue-platform/public/images/agent-avatar.png"
+    description: "Sleek minimalist glowing AI core icon, deep dark background, neon indigo and cyan accents, premium tech brand logo style"
+    aspect_ratio: "1:1"
+
+notes:
+  - "Assumes @workspace/api-client-react provides all TanStack Query hooks"
+  - "Assumes @workspace/replit-auth-web provides useAuth hook"
