@@ -1,0 +1,339 @@
+Build a production-ready SaaS web application called Agentic AI Revenue Platform that manages autonomous revenue agents for B2B companies.
+
+The system should automate pipeline generation across three modules:
+
+AI Outbound Agent
+
+AI CRM Reactivation Agent
+
+AI Website Conversion Agent
+
+The platform must look and behave like a modern SaaS product (similar to HubSpot, Clay, or Instantly).
+
+Tech Stack
+
+Frontend
+
+React (Next.js preferred)
+
+Tailwind CSS
+
+ShadCN UI components
+
+Chart.js or Recharts for analytics
+
+Backend
+
+Node.js + Express
+
+PostgreSQL database
+
+REST API architecture
+
+AI
+
+OpenAI API (GPT-4o)
+
+Integrations
+
+Apollo (lead sourcing)
+
+MillionVerifier (email verification)
+
+Instantly API (email sending)
+
+Mailwarm (domain warm-up)
+
+GoHighLevel / HubSpot (CRM)
+
+Calendly (booking)
+
+Tidio (chat)
+
+Core SaaS Layout
+
+Create a clean SaaS dashboard UI.
+
+Left Sidebar Navigation
+
+Dashboard
+AI Outbound
+AI Reactivation
+AI Conversion
+Campaigns
+Analytics
+Integrations
+Settings
+
+Dashboard Overview Page
+
+Show key revenue metrics:
+
+Cards
+
+Total Prospects
+Emails Sent
+Reply Rate
+Meetings Booked
+Reactivated Leads
+Website Conversions
+
+Charts
+
+Outbound performance
+Pipeline generated
+Conversion funnel
+
+Module 1 — AI Outbound Agent
+
+Purpose: Generate pipeline automatically
+
+Features:
+
+Lead Sourcing
+
+Connect Apollo API
+
+Import ICP-targeted leads
+
+Store leads in database
+
+Email Verification
+
+Run MillionVerifier API
+
+Remove invalid emails
+
+Save verified leads
+
+Mailbox Management
+
+Connect Instantly API
+
+Manage sending accounts
+
+Set sending limits
+
+Track deliverability
+
+Domain Warm-up
+
+Integrate Mailwarm API.
+
+AI Personalization Engine
+
+Use GPT-4o to generate:
+
+first-line personalization
+
+subject lines
+
+email sequences
+
+follow-ups
+
+Add prompt templates editor.
+
+Campaign Builder
+
+User should be able to:
+
+select ICP list
+
+choose email sequence
+
+launch campaign
+
+Module 2 — AI CRM Reactivation Agent
+
+Purpose: Generate pipeline from dormant leads
+
+Features:
+
+CRM Import
+
+Connect:
+
+GoHighLevel
+HubSpot
+
+Pull:
+
+past leads
+
+lost deals
+
+inactive contacts
+
+Segmentation
+
+Segment leads by:
+
+last contact date
+
+industry
+
+deal stage
+
+engagement score
+
+AI Reactivation Campaigns
+
+Generate:
+
+reactivation emails
+
+SMS messages
+
+follow-up sequences
+
+Outreach Execution
+
+Send via:
+
+Instantly
+Twilio (optional)
+
+Attribution Dashboard
+
+Track:
+
+reactivated leads
+
+booked meetings
+
+revenue attribution
+
+Module 3 — AI Conversion Agent
+
+Purpose: Convert website visitors
+
+AI Chat Widget
+
+Create a GPT-powered chat widget that can be embedded on websites.
+
+Capabilities:
+
+answer questions
+
+qualify visitors
+
+suggest solutions
+
+Knowledge Base
+
+Allow uploading:
+
+FAQs
+
+documentation
+
+service descriptions
+
+Embed content for AI context.
+
+Lead Qualification
+
+AI should ask:
+
+company size
+
+problem
+
+budget
+
+timeline
+
+Booking
+
+Integrate:
+
+Calendly
+GoHighLevel
+
+AI automatically schedules meetings.
+
+Agentic System Behavior
+
+Each module acts as an autonomous AI agent.
+
+Agents should:
+
+perceive data
+
+decide next best action
+
+generate communication
+
+execute through APIs
+
+optimize based on results
+
+Create a simple orchestration layer to manage agent workflows.
+
+Analytics System
+
+Build analytics pages showing:
+
+open rates
+
+reply rates
+
+meetings booked
+
+lead conversions
+
+revenue generated
+
+Use charts and tables.
+
+SaaS Features
+
+Include:
+
+User authentication
+Multi-tenant accounts
+Team members
+Role permissions
+API keys for integrations
+Webhook support
+
+UI Design
+
+Design must look like a modern SaaS startup:
+
+minimal
+
+clean
+
+responsive
+
+dark/light mode
+
+fast loading
+
+Use Tailwind + ShadCN components.
+
+Bonus Features (if possible)
+
+Add:
+
+A/B testing engine
+Prompt optimization
+Agent activity logs
+Pipeline forecasting
+Campaign performance recommendations
+
+Goal
+
+The final product should function as a centralized AI Revenue Command Center that allows companies to:
+
+launch outbound campaigns
+
+reactivate CRM leads
+
+convert inbound traffic
+
+monitor revenue pipeline
+
+All from one SaaS dashboard.
