@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
-import { db, usersTable, apiKeysTable, promptTemplatesTable } from "@workspace/db";
+import { eq, and, inArray } from "drizzle-orm";
+import { db, usersTable, apiKeysTable, promptTemplatesTable, teamMembersTable } from "@workspace/db";
 import { randomBytes } from "crypto";
 import {
   ListTeamMembersResponse,
@@ -18,10 +18,23 @@ import {
 const router: IRouter = Router();
 
 router.get("/settings/team", async (req, res): Promise<void> => {
-  const users = await db.select().from(usersTable).orderBy(usersTable.createdAt);
+  const userId = req.user!.id;
+
+  const teamRows = await db.select().from(teamMembersTable)
+    .where(eq(teamMembersTable.userId, userId))
+    .orderBy(teamMembersTable.createdAt);
+
+  const memberIds = teamRows.map(t => t.memberId);
+  const allMemberIds = [userId, ...memberIds];
+
+  const users = allMemberIds.length > 0
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, allMemberIds))
+    : [];
+
+  const roleMap = new Map(teamRows.map(t => [t.memberId, t.role]));
   const members = users.map(u => ({
     ...u,
-    role: "admin",
+    role: u.id === userId ? "owner" : (roleMap.get(u.id) ?? "member"),
   }));
   res.json(ListTeamMembersResponse.parse(members));
 });
