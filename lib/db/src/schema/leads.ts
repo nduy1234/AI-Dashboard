@@ -1,4 +1,5 @@
 import { pgTable, serial, text, varchar, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -22,6 +23,7 @@ export const leadsTable = pgTable("leads", {
   dealValue: doublePrecision("deal_value"),
   notes: text("notes"),
   userId: varchar("user_id"),
+  orgId: integer("org_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
 });

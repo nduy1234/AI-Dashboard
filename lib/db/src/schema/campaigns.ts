@@ -15,6 +15,7 @@ export const campaignsTable = pgTable("campaigns", {
   replyCount: integer("reply_count").notNull().default(0),
   meetingsBooked: integer("meetings_booked").notNull().default(0),
   userId: varchar("user_id"),
+  orgId: integer("org_id"),
   launchedAt: timestamp("launched_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),

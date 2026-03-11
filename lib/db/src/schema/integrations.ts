@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, integer, boolean, jsonb, timestamp } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -13,6 +13,7 @@ export const integrationsTable = pgTable("integrations", {
   lastSyncAt: timestamp("last_sync_at", { withTimezone: true }),
   config: jsonb("config"),
   userId: varchar("user_id"),
+  orgId: integer("org_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

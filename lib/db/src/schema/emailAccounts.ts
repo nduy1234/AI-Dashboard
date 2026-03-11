@@ -12,6 +12,7 @@ export const emailAccountsTable = pgTable("email_accounts", {
   warmupEnabled: boolean("warmup_enabled").notNull().default(false),
   reputation: doublePrecision("reputation").notNull().default(100),
   userId: varchar("user_id"),
+  orgId: integer("org_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 

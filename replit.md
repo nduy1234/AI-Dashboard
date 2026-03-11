@@ -53,7 +53,9 @@ artifacts-monorepo/
 
 ## Database Schema
 
-Tables: `users`, `sessions`, `leads`, `campaigns`, `campaign_leads`, `email_accounts`, `integrations`, `knowledge_base_docs`, `agent_logs`, `api_keys`, `prompt_templates`, `analytics_events`, `team_members`
+Tables: `users`, `sessions`, `leads`, `campaigns`, `campaign_leads`, `email_accounts`, `integrations`, `knowledge_base_docs`, `agent_logs`, `api_keys`, `prompt_templates`, `analytics_events`, `team_members`, `organizations`, `org_memberships`
+
+Multi-tenant: Each user gets an auto-created organization on first login. Leads, campaigns, email accounts, and integrations carry both `userId` and `orgId`. Team members are scoped via `org_memberships`.
 
 ## API Routes (all under `/api`)
 
@@ -109,7 +111,7 @@ React + Vite frontend with dark theme, shadcn/ui components, and full dashboard.
 
 Database layer using Drizzle ORM with PostgreSQL.
 
-- Schema: auth (users, sessions), leads, campaigns, emailAccounts, integrations, knowledgeBase, agentLogs, apiKeys, promptTemplates, analyticsEvents, teamMembers
+- Schema: auth (users, sessions), leads, campaigns, emailAccounts, integrations, knowledgeBase, agentLogs, apiKeys, promptTemplates, analyticsEvents, teamMembers, organizations
 - Push schema: `pnpm --filter @workspace/db run push`
 
 ### `lib/api-spec` (`@workspace/api-spec`)

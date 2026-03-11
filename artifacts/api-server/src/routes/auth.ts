@@ -18,7 +18,7 @@ import {
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-import { seedDemoDataForUser } from "../seed";
+import { seedDemoDataForUser, ensureUserOrg } from "../seed";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
@@ -170,6 +170,7 @@ router.get("/callback", async (req: Request, res: Response) => {
   );
 
   try {
+    await ensureUserOrg(dbUser.id, dbUser.firstName ?? undefined);
     await seedDemoDataForUser(dbUser.id);
   } catch (err) {
     console.error("Seed error:", err);

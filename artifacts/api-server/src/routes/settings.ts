@@ -1,6 +1,6 @@
 import { Router, type IRouter } from "express";
 import { eq, and, inArray } from "drizzle-orm";
-import { db, usersTable, apiKeysTable, promptTemplatesTable, teamMembersTable } from "@workspace/db";
+import { db, usersTable, apiKeysTable, promptTemplatesTable, orgMembershipsTable } from "@workspace/db";
 import { randomBytes } from "crypto";
 import {
   ListTeamMembersResponse,
@@ -20,21 +20,28 @@ const router: IRouter = Router();
 router.get("/settings/team", async (req, res): Promise<void> => {
   const userId = req.user!.id;
 
-  const teamRows = await db.select().from(teamMembersTable)
-    .where(eq(teamMembersTable.userId, userId))
-    .orderBy(teamMembersTable.createdAt);
+  const [myMembership] = await db.select().from(orgMembershipsTable)
+    .where(eq(orgMembershipsTable.userId, userId));
 
-  const memberIds = teamRows.map(t => t.memberId);
-  const allMemberIds = [userId, ...memberIds];
+  if (!myMembership) {
+    const currentUser = await db.select().from(usersTable).where(eq(usersTable.id, userId));
+    res.json(ListTeamMembersResponse.parse(currentUser.map(u => ({ ...u, role: "owner" }))));
+    return;
+  }
 
-  const users = allMemberIds.length > 0
-    ? await db.select().from(usersTable).where(inArray(usersTable.id, allMemberIds))
+  const orgMembers = await db.select().from(orgMembershipsTable)
+    .where(eq(orgMembershipsTable.orgId, myMembership.orgId))
+    .orderBy(orgMembershipsTable.createdAt);
+
+  const memberUserIds = orgMembers.map(m => m.userId);
+  const users = memberUserIds.length > 0
+    ? await db.select().from(usersTable).where(inArray(usersTable.id, memberUserIds))
     : [];
 
-  const roleMap = new Map(teamRows.map(t => [t.memberId, t.role]));
+  const roleMap = new Map(orgMembers.map(m => [m.userId, m.role]));
   const members = users.map(u => ({
     ...u,
-    role: u.id === userId ? "owner" : (roleMap.get(u.id) ?? "member"),
+    role: roleMap.get(u.id) ?? "member",
   }));
   res.json(ListTeamMembersResponse.parse(members));
 });
