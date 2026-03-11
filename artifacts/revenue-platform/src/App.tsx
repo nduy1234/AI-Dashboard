@@ -6,17 +6,19 @@ import { useAuth } from "@workspace/replit-auth-web";
 import { ThemeProvider } from "@/components/theme-provider";
 import { AppLayout } from "@/components/layout";
 
-// Pages
 import NotFound from "@/pages/not-found";
 import LoginPage from "@/pages/login";
 import Dashboard from "@/pages/dashboard";
 import AIOutbound from "@/pages/ai-outbound";
 import Campaigns from "@/pages/campaigns";
 import Integrations from "@/pages/integrations";
+import Reactivation from "@/pages/reactivation";
+import Conversion from "@/pages/conversion";
+import Analytics from "@/pages/analytics";
+import SettingsPage from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
-// Protected Route wrapper
 function ProtectedRoute({ component: Component, ...rest }: any) {
   const { isAuthenticated, isLoading } = useAuth();
   
@@ -39,17 +41,6 @@ function ProtectedRoute({ component: Component, ...rest }: any) {
   );
 }
 
-// Fallback pages for unwritten routes to show completeness
-const PlaceholderPage = ({ title }: { title: string }) => (
-  <div className="flex flex-col items-center justify-center h-[60vh] text-center space-y-4 animate-in fade-in zoom-in duration-500">
-    <div className="w-16 h-16 bg-muted rounded-2xl flex items-center justify-center mb-4">
-      <span className="text-2xl font-bold text-muted-foreground">⚙️</span>
-    </div>
-    <h2 className="text-2xl font-display font-bold text-foreground">{title}</h2>
-    <p className="text-muted-foreground max-w-md">This module is currently being provisioned by the Agentic AI platform core.</p>
-  </div>
-);
-
 function Router() {
   return (
     <Switch>
@@ -57,13 +48,10 @@ function Router() {
       <Route path="/outbound" component={() => <ProtectedRoute component={AIOutbound} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />
       <Route path="/integrations" component={() => <ProtectedRoute component={Integrations} />} />
-      
-      {/* Placeholders for remaining sidebar routes to prevent 404s */}
-      <Route path="/reactivation" component={() => <ProtectedRoute component={() => <PlaceholderPage title="CRM Reactivation Agent" />} />} />
-      <Route path="/conversion" component={() => <ProtectedRoute component={() => <PlaceholderPage title="Website Conversion Agent" />} />} />
-      <Route path="/analytics" component={() => <ProtectedRoute component={() => <PlaceholderPage title="Analytics & Attribution" />} />} />
-      <Route path="/settings" component={() => <ProtectedRoute component={() => <PlaceholderPage title="Workspace Settings" />} />} />
-      
+      <Route path="/reactivation" component={() => <ProtectedRoute component={Reactivation} />} />
+      <Route path="/conversion" component={() => <ProtectedRoute component={Conversion} />} />
+      <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} />} />
+      <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
       <Route component={NotFound} />
     </Switch>
   );

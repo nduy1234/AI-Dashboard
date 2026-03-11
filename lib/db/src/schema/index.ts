@@ -7,3 +7,5 @@ export * from "./knowledgeBase";
 export * from "./agentLogs";
 export * from "./apiKeys";
 export * from "./promptTemplates";
+export * from "./analyticsEvents";
+export * from "./teamMembers";
