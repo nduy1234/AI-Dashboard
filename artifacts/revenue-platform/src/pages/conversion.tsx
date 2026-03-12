@@ -2,23 +2,27 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/ui/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { MessageSquare, MousePointerClick, CalendarCheck, Bot, Globe, Users, Send, Sparkles } from "lucide-react";
+import { MessageSquare, MousePointerClick, CalendarCheck, Bot, Globe, Users, Send, Sparkles, FileText, Upload, Code2, Filter, ArrowDown, CheckCircle2, XCircle, Copy } from "lucide-react";
 import { useLeads } from "@/hooks/use-leads";
+import { useToast } from "@/hooks/use-toast";
 
 export default function Conversion() {
+  const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("chatbot");
   const [chatMessage, setChatMessage] = useState("");
   const [chatHistory, setChatHistory] = useState<Array<{ role: string; content: string }>>([
     { role: "assistant", content: "Hi there! I'm your AI sales assistant. How can I help you learn about our platform today?" },
   ]);
   const { data: leads } = useLeads();
+  const [widgetColor, setWidgetColor] = useState("#7C3AED");
+  const [widgetPosition, setWidgetPosition] = useState("bottom-right");
 
   const websiteLeads = leads?.filter(l => l.source === "website") ?? [];
 
@@ -37,6 +41,21 @@ export default function Conversion() {
       { role: "assistant", content: "Thanks for your interest! Based on what you've shared, I think our Growth plan would be a great fit. It includes all three AI agents — Outbound, Reactivation, and Conversion — with unlimited email sending. Would you like to schedule a quick demo to see it in action?" },
     ]);
     setChatMessage("");
+  };
+
+  const embedCode = `<script src="https://cdn.agentic-ai.com/widget.js"></script>
+<script>
+  AgenticChat.init({
+    apiKey: "YOUR_API_KEY",
+    color: "${widgetColor}",
+    position: "${widgetPosition}",
+    greeting: "Hi! How can I help?"
+  });
+</script>`;
+
+  const handleCopyEmbed = () => {
+    navigator.clipboard.writeText(embedCode);
+    toast({ title: "Copied", description: "Embed code copied to clipboard." });
   };
 
   return (
@@ -63,10 +82,12 @@ export default function Conversion() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/50">
+        <TabsList className="bg-muted/50 flex-wrap">
           <TabsTrigger value="chatbot">AI Chatbot Preview</TabsTrigger>
+          <TabsTrigger value="knowledge-base">Knowledge Base</TabsTrigger>
+          <TabsTrigger value="qualification">Qualification Flow</TabsTrigger>
           <TabsTrigger value="leads">Website Leads</TabsTrigger>
-          <TabsTrigger value="config">Configuration</TabsTrigger>
+          <TabsTrigger value="widget">Widget Configurator</TabsTrigger>
         </TabsList>
 
         <TabsContent value="chatbot" className="mt-6">
@@ -139,6 +160,163 @@ export default function Conversion() {
           </div>
         </TabsContent>
 
+        <TabsContent value="knowledge-base" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Upload className="h-5 w-5 text-primary" />
+                  Upload Documents
+                </CardTitle>
+                <CardDescription>Feed your AI chatbot with company knowledge.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="border-2 border-dashed border-border rounded-lg p-8 text-center">
+                  <FileText className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                  <p className="text-sm font-medium">Drop files here or click to upload</p>
+                  <p className="text-xs text-muted-foreground mt-1">PDF, DOCX, TXT, MD (max 10MB each)</p>
+                  <Button variant="outline" size="sm" className="mt-4">Browse Files</Button>
+                </div>
+                <div className="space-y-2">
+                  <Label>Or paste content directly</Label>
+                  <Textarea rows={4} placeholder="Paste product documentation, FAQs, pricing info..." />
+                  <Button size="sm" className="w-full">Add to Knowledge Base</Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle>Knowledge Base Documents</CardTitle>
+                <CardDescription>Documents the AI chatbot uses to answer visitor questions.</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Document</TableHead>
+                      <TableHead>Type</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {[
+                      { title: "Product Overview", type: "Documentation", status: "indexed" },
+                      { title: "Pricing FAQ", type: "FAQ", status: "indexed" },
+                      { title: "Integration Guide", type: "Documentation", status: "indexed" },
+                      { title: "Case Studies", type: "Marketing", status: "processing" },
+                    ].map((doc, i) => (
+                      <TableRow key={i}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4 text-muted-foreground" />
+                            {doc.title}
+                          </div>
+                        </TableCell>
+                        <TableCell><Badge variant="secondary">{doc.type}</Badge></TableCell>
+                        <TableCell>
+                          <Badge className={doc.status === "indexed" ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500"}>
+                            {doc.status === "indexed" ? <><CheckCircle2 className="h-3 w-3 mr-1" /> Indexed</> : "Processing..."}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">Remove</Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="qualification" className="mt-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Filter className="h-5 w-5 text-primary" />
+                  Lead Qualification Flow
+                </CardTitle>
+                <CardDescription>Define the criteria the AI uses to qualify website visitors.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {[
+                  { step: 1, question: "Company Size", criteria: "> 50 employees", action: "Continue" },
+                  { step: 2, question: "Industry Match", criteria: "B2B SaaS, Enterprise, Technology", action: "Continue" },
+                  { step: 3, question: "Budget Available", criteria: "> $500/month", action: "Continue" },
+                  { step: 4, question: "Timeline", criteria: "< 3 months", action: "Qualify & Book" },
+                ].map((step, i, arr) => (
+                  <div key={step.step}>
+                    <div className="flex items-start gap-3 p-4 rounded-lg border border-border bg-muted/20">
+                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0">
+                        <span className="text-sm font-bold text-primary">{step.step}</span>
+                      </div>
+                      <div className="flex-1 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <p className="font-medium text-sm">{step.question}</p>
+                          <Badge variant="outline" className="text-xs">{step.action}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">Criteria: {step.criteria}</p>
+                      </div>
+                    </div>
+                    {i < arr.length - 1 && (
+                      <div className="flex justify-center py-1">
+                        <ArrowDown className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+                <Button variant="outline" className="w-full">Add Qualification Step</Button>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Qualification Outcomes</CardTitle>
+                <CardDescription>What happens after each qualification result.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="p-4 rounded-lg border border-green-500/30 bg-green-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <CheckCircle2 className="h-5 w-5 text-green-500" />
+                    <p className="font-semibold text-green-500">Qualified (Score 70+)</p>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-7">
+                    <li>Auto-suggest booking a demo via Calendly</li>
+                    <li>Create lead in CRM with full conversation history</li>
+                    <li>Notify sales rep via Slack/email</li>
+                  </ul>
+                </div>
+                <div className="p-4 rounded-lg border border-yellow-500/30 bg-yellow-500/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <MessageSquare className="h-5 w-5 text-yellow-500" />
+                    <p className="font-semibold text-yellow-500">Warm (Score 40-69)</p>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-7">
+                    <li>Continue nurturing with relevant content</li>
+                    <li>Add to email drip sequence</li>
+                    <li>Offer resource download (whitepaper, case study)</li>
+                  </ul>
+                </div>
+                <div className="p-4 rounded-lg border border-muted bg-muted/10">
+                  <div className="flex items-center gap-2 mb-2">
+                    <XCircle className="h-5 w-5 text-muted-foreground" />
+                    <p className="font-semibold text-muted-foreground">Unqualified (Score &lt; 40)</p>
+                  </div>
+                  <ul className="text-sm text-muted-foreground space-y-1 ml-7">
+                    <li>Provide helpful resources and self-serve options</li>
+                    <li>Save contact for future outreach</li>
+                  </ul>
+                </div>
+                <Button className="w-full">Save Qualification Rules</Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
         <TabsContent value="leads" className="mt-6">
           <Card>
             <CardHeader>
@@ -182,12 +360,15 @@ export default function Conversion() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="config" className="mt-6">
+        <TabsContent value="widget" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
-                <CardTitle>Chatbot Settings</CardTitle>
-                <CardDescription>Configure how the AI chatbot interacts with visitors.</CardDescription>
+                <CardTitle className="flex items-center gap-2">
+                  <Code2 className="h-5 w-5 text-primary" />
+                  Widget Configurator
+                </CardTitle>
+                <CardDescription>Customize and embed the chat widget on your website.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
@@ -198,15 +379,38 @@ export default function Conversion() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Company Description</Label>
-                  <Textarea
-                    defaultValue="We provide an AI-powered revenue platform that helps B2B companies automate pipeline generation through autonomous outbound, CRM reactivation, and website conversion agents."
-                    rows={3}
-                  />
+                  <Label>Brand Color</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      type="color"
+                      value={widgetColor}
+                      onChange={(e) => setWidgetColor(e.target.value)}
+                      className="w-16 h-10 p-1"
+                    />
+                    <Input
+                      value={widgetColor}
+                      onChange={(e) => setWidgetColor(e.target.value)}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Qualification Criteria</Label>
-                  <Input defaultValue="Company size > 50 employees, B2B SaaS, Active buying cycle" />
+                  <Label>Widget Position</Label>
+                  <select
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={widgetPosition}
+                    onChange={(e) => setWidgetPosition(e.target.value)}
+                  >
+                    <option value="bottom-right">Bottom Right</option>
+                    <option value="bottom-left">Bottom Left</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Company Description</Label>
+                  <Textarea
+                    defaultValue="We provide an AI-powered revenue platform that helps B2B companies automate pipeline generation."
+                    rows={3}
+                  />
                 </div>
                 <Button>Save Configuration</Button>
               </CardContent>
@@ -214,25 +418,42 @@ export default function Conversion() {
 
             <Card>
               <CardHeader>
-                <CardTitle>Integration Status</CardTitle>
-                <CardDescription>Connected services for the conversion agent.</CardDescription>
+                <CardTitle>Embed Code</CardTitle>
+                <CardDescription>Copy and paste this snippet into your website's HTML.</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-3">
-                {[
-                  { name: "Calendly", status: "connected", desc: "Meeting scheduling" },
-                  { name: "Tidio", status: "disconnected", desc: "Live chat widget" },
-                  { name: "HubSpot", status: "connected", desc: "CRM sync" },
-                ].map(int => (
-                  <div key={int.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
-                    <div>
-                      <p className="font-medium text-sm">{int.name}</p>
-                      <p className="text-xs text-muted-foreground">{int.desc}</p>
+              <CardContent className="space-y-4">
+                <div className="relative">
+                  <pre className="bg-muted/50 rounded-lg p-4 text-xs font-mono overflow-x-auto border border-border">
+                    {embedCode}
+                  </pre>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="absolute top-2 right-2 gap-1"
+                    onClick={handleCopyEmbed}
+                  >
+                    <Copy className="h-3 w-3" /> Copy
+                  </Button>
+                </div>
+
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">Integration Status</p>
+                  {[
+                    { name: "Calendly", status: "connected", desc: "Meeting scheduling" },
+                    { name: "Tidio", status: "disconnected", desc: "Live chat fallback" },
+                    { name: "HubSpot", status: "connected", desc: "CRM sync" },
+                  ].map(int => (
+                    <div key={int.name} className="flex items-center justify-between p-3 rounded-lg bg-muted/30">
+                      <div>
+                        <p className="font-medium text-sm">{int.name}</p>
+                        <p className="text-xs text-muted-foreground">{int.desc}</p>
+                      </div>
+                      <Badge variant={int.status === "connected" ? "default" : "secondary"}>
+                        {int.status}
+                      </Badge>
                     </div>
-                    <Badge variant={int.status === "connected" ? "default" : "secondary"}>
-                      {int.status}
-                    </Badge>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </CardContent>
             </Card>
           </div>

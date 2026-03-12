@@ -7,26 +7,34 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Search, Upload, Mail, Wand2, Plus, ArrowRight, CheckCircle2 } from "lucide-react";
-import { useImportLeads } from "@/hooks/use-leads";
-import { useAIPersonalize } from "@/hooks/use-ai";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Search, Upload, Mail, Wand2, Plus, ArrowRight, CheckCircle2, ShieldCheck, AlertTriangle, XCircle, ListOrdered, Clock, Send } from "lucide-react";
+import { useImportLeads, useLeads, useVerifyLeads } from "@/hooks/use-leads";
+import { useAIPersonalize, useAIGenerateSequence } from "@/hooks/use-ai";
 import { useToast } from "@/hooks/use-toast";
 
 export default function AIOutbound() {
   const { toast } = useToast();
   const importMutation = useImportLeads();
   const personalizeMutation = useAIPersonalize();
+  const verifyMutation = useVerifyLeads();
+  const sequenceMutation = useAIGenerateSequence();
+  const { data: leads } = useLeads();
   
   const [activeTab, setActiveTab] = useState("sourcing");
   const [promptContext, setPromptContext] = useState("We are selling a B2B SaaS platform for revenue teams.");
+  const [campaignName, setCampaignName] = useState("");
+  const [sequenceCount, setSequenceCount] = useState("4");
+  const [targetAudience, setTargetAudience] = useState("B2B SaaS decision makers (VP/C-level)");
+
+  const unverifiedLeads = leads?.filter(l => !l.verified) ?? [];
+  const verifiedLeads = leads?.filter(l => l.verified) ?? [];
 
   const handleImport = () => {
     importMutation.mutate({ source: "apollo", filters: {} }, {
       onSuccess: () => {
-        toast({
-          title: "Leads Imported",
-          description: "Successfully imported leads from Apollo.",
-        });
+        toast({ title: "Leads Imported", description: "Successfully imported leads from Apollo." });
       }
     });
   };
@@ -34,10 +42,30 @@ export default function AIOutbound() {
   const handleGenerate = () => {
     personalizeMutation.mutate({ leadId: 1, templateType: "cold_outreach", context: promptContext }, {
       onSuccess: () => {
-        toast({
-          title: "AI Personalization Generated",
-          description: "Subject lines and email copy have been drafted.",
-        });
+        toast({ title: "AI Personalization Generated", description: "Subject lines and email copy have been drafted." });
+      }
+    });
+  };
+
+  const handleVerifyAll = () => {
+    const ids = unverifiedLeads.map(l => l.id);
+    if (ids.length === 0) return;
+    verifyMutation.mutate({ leadIds: ids }, {
+      onSuccess: (data) => {
+        toast({ title: "Verification Complete", description: `${data.verified} verified, ${data.invalid} invalid out of ${data.total} emails.` });
+      }
+    });
+  };
+
+  const handleGenerateSequence = () => {
+    sequenceMutation.mutate({
+      campaignType: "outbound",
+      numberOfEmails: parseInt(sequenceCount),
+      targetAudience,
+      tone: "professional",
+    }, {
+      onSuccess: () => {
+        toast({ title: "Sequence Generated", description: `${sequenceCount}-email sequence created by AI.` });
       }
     });
   };
@@ -50,15 +78,21 @@ export default function AIOutbound() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        <TabsList className="bg-muted/50 p-1 border border-border/50 rounded-xl h-auto">
+        <TabsList className="bg-muted/50 p-1 border border-border/50 rounded-xl h-auto flex-wrap">
           <TabsTrigger value="sourcing" className="py-2.5 px-4 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
             1. Lead Sourcing
           </TabsTrigger>
+          <TabsTrigger value="verification" className="py-2.5 px-4 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            2. Verification
+          </TabsTrigger>
           <TabsTrigger value="mailboxes" className="py-2.5 px-4 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            2. Mailboxes
+            3. Mailboxes
           </TabsTrigger>
           <TabsTrigger value="personalization" className="py-2.5 px-4 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
-            3. AI Personalization
+            4. AI Personalization
+          </TabsTrigger>
+          <TabsTrigger value="campaign-builder" className="py-2.5 px-4 rounded-lg data-[state=active]:bg-background data-[state=active]:shadow-sm">
+            5. Campaign Builder
           </TabsTrigger>
         </TabsList>
 
@@ -102,6 +136,79 @@ export default function AIOutbound() {
                   <p className="text-sm text-muted-foreground mt-1">Drag and drop your lead list here, or click to browse.</p>
                 </div>
                 <Button variant="outline" className="mt-4">Browse Files</Button>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="verification" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="border-border/50 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldCheck className="h-5 w-5 text-green-500" />
+                  Verification Status
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between p-3 rounded-lg bg-green-500/10">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-green-500" />
+                    <span className="text-sm">Verified</span>
+                  </div>
+                  <span className="font-bold text-green-500">{verifiedLeads.length}</span>
+                </div>
+                <div className="flex items-center justify-between p-3 rounded-lg bg-yellow-500/10">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4 text-yellow-500" />
+                    <span className="text-sm">Pending</span>
+                  </div>
+                  <span className="font-bold text-yellow-500">{unverifiedLeads.length}</span>
+                </div>
+                <Button className="w-full gap-2" onClick={handleVerifyAll} disabled={verifyMutation.isPending || unverifiedLeads.length === 0}>
+                  <ShieldCheck className="h-4 w-4" />
+                  {verifyMutation.isPending ? "Verifying..." : "Verify All Pending"}
+                </Button>
+                <p className="text-xs text-muted-foreground text-center">Powered by MillionVerifier API</p>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2 border-border/50 shadow-sm">
+              <CardHeader>
+                <CardTitle>Email Verification Results</CardTitle>
+                <CardDescription>Review verification status for each imported lead</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Email</TableHead>
+                      <TableHead>Name</TableHead>
+                      <TableHead>Company</TableHead>
+                      <TableHead>Status</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {(leads ?? []).slice(0, 10).map(lead => (
+                      <TableRow key={lead.id}>
+                        <TableCell className="font-mono text-sm">{lead.email}</TableCell>
+                        <TableCell>{lead.firstName} {lead.lastName}</TableCell>
+                        <TableCell className="text-muted-foreground">{lead.company}</TableCell>
+                        <TableCell>
+                          {lead.verified ? (
+                            <Badge className="bg-green-500/10 text-green-500">
+                              <CheckCircle2 className="h-3 w-3 mr-1" /> Valid
+                            </Badge>
+                          ) : (
+                            <Badge variant="secondary" className="bg-yellow-500/10 text-yellow-500">
+                              <AlertTriangle className="h-3 w-3 mr-1" /> Unverified
+                            </Badge>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
               </CardContent>
             </Card>
           </div>
@@ -215,11 +322,110 @@ export default function AIOutbound() {
                 
                 <div className="flex justify-end gap-3">
                   <Button variant="outline">Regenerate</Button>
-                  <Button className="gap-2">
+                  <Button className="gap-2" onClick={() => setActiveTab("campaign-builder")}>
                     Create Campaign <ArrowRight className="w-4 h-4" />
                   </Button>
                 </div>
               </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="campaign-builder" className="mt-0">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <Card className="lg:col-span-1 border-border/50 shadow-sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ListOrdered className="h-5 w-5 text-primary" />
+                  Campaign Setup
+                </CardTitle>
+                <CardDescription>Configure your outbound campaign</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Campaign Name</Label>
+                  <Input
+                    placeholder="Q1 Enterprise Outbound"
+                    value={campaignName}
+                    onChange={(e) => setCampaignName(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Target Audience</Label>
+                  <Textarea
+                    rows={3}
+                    value={targetAudience}
+                    onChange={(e) => setTargetAudience(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Emails in Sequence</Label>
+                  <select
+                    className="w-full h-10 px-3 rounded-md border border-input bg-background text-sm"
+                    value={sequenceCount}
+                    onChange={(e) => setSequenceCount(e.target.value)}
+                  >
+                    <option value="3">3 emails</option>
+                    <option value="4">4 emails</option>
+                    <option value="5">5 emails</option>
+                    <option value="6">6 emails</option>
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Lead Pool</Label>
+                  <div className="p-3 rounded-lg bg-muted/30 border border-border text-sm">
+                    <p className="font-medium">{verifiedLeads.length} verified leads selected</p>
+                    <p className="text-xs text-muted-foreground mt-1">Only verified emails will be included</p>
+                  </div>
+                </div>
+                <Button
+                  className="w-full gap-2"
+                  onClick={handleGenerateSequence}
+                  disabled={sequenceMutation.isPending}
+                >
+                  <Wand2 className="h-4 w-4" />
+                  {sequenceMutation.isPending ? "Generating..." : "AI Generate Sequence"}
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="lg:col-span-2 border-border/50 shadow-sm">
+              <CardHeader>
+                <CardTitle>Email Sequence Preview</CardTitle>
+                <CardDescription>AI-generated multi-step outreach sequence</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-4">
+                  {[
+                    { order: 1, delay: "Immediate", subject: "Quick question about {{company}}", preview: "Hi {{firstName}}, I noticed {{company}} is scaling rapidly..." },
+                    { order: 2, delay: "2 days later", subject: "Re: {{company}}'s growth strategy", preview: "{{firstName}}, wanted to follow up on my previous note..." },
+                    { order: 3, delay: "4 days later", subject: "{{firstName}}, a case study for you", preview: "Hi {{firstName}}, thought you might find this relevant..." },
+                    { order: 4, delay: "7 days later", subject: "Last note, {{firstName}}", preview: "{{firstName}}, I know you're busy so I'll keep this brief..." },
+                  ].map((email) => (
+                    <div key={email.order} className="p-4 rounded-lg border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-primary">{email.order}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{email.subject}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">{email.delay}</span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-sm text-muted-foreground ml-11">{email.preview}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+              <CardFooter className="flex justify-end gap-3 border-t pt-4">
+                <Button variant="outline">Edit Sequence</Button>
+                <Button className="gap-2">
+                  <Send className="h-4 w-4" /> Launch Campaign
+                </Button>
+              </CardFooter>
             </Card>
           </div>
         </TabsContent>
