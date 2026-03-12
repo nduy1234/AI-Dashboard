@@ -20,11 +20,13 @@ export default function Integrations() {
 
   const integrationsList = [
     { id: 1, name: "Apollo.io", description: "Lead sourcing and filtering", status: "connected", category: "Sourcing" },
-    { id: 2, name: "MillionVerifier", description: "Email list cleaning", status: "disconnected", category: "Verification" },
+    { id: 2, name: "MillionVerifier", description: "Email list cleaning", status: "connected", category: "Verification" },
     { id: 3, name: "Instantly", description: "Cold email sending", status: "connected", category: "Sending" },
-    { id: 4, name: "HubSpot", description: "CRM Sync and Reactivation", status: "disconnected", category: "CRM" },
-    { id: 5, name: "Calendly", description: "Meeting booking integration", status: "connected", category: "Scheduling" },
-    { id: 6, name: "Tidio", description: "Website chat widget", status: "disconnected", category: "Conversion" },
+    { id: 4, name: "Mailwarm", description: "Email domain warm-up service", status: "connected", category: "Domain Warmup" },
+    { id: 5, name: "GoHighLevel", description: "All-in-one CRM and marketing platform", status: "disconnected", category: "CRM" },
+    { id: 6, name: "HubSpot", description: "CRM Sync and Reactivation", status: "connected", category: "CRM" },
+    { id: 7, name: "Calendly", description: "Meeting booking integration", status: "connected", category: "Scheduling" },
+    { id: 8, name: "Tidio", description: "Website chat widget", status: "disconnected", category: "Conversion" },
   ];
 
   const displayData = data?.length ? data : integrationsList;

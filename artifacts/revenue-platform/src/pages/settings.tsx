@@ -136,7 +136,7 @@ export default function SettingsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="team" className="mt-6">
+        <TabsContent value="team" className="mt-6 space-y-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -155,6 +155,7 @@ export default function SettingsPage() {
                     <TableHead>Email</TableHead>
                     <TableHead>Role</TableHead>
                     <TableHead>Joined</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -174,15 +175,76 @@ export default function SettingsPage() {
                       </TableCell>
                       <TableCell className="text-muted-foreground">{member.email ?? "—"}</TableCell>
                       <TableCell>
-                        <Badge variant="secondary">{member.role}</Badge>
+                        <select
+                          className="h-8 px-2 rounded-md border border-input bg-background text-xs"
+                          defaultValue={member.role ?? "member"}
+                        >
+                          <option value="owner">Owner</option>
+                          <option value="admin">Admin</option>
+                          <option value="member">Member</option>
+                          <option value="viewer">Viewer</option>
+                        </select>
                       </TableCell>
                       <TableCell className="text-muted-foreground text-sm">
                         {member.createdAt ? new Date(member.createdAt).toLocaleDateString() : "—"}
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive">
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Shield className="h-5 w-5" />
+                Role Permissions
+              </CardTitle>
+              <CardDescription>Define what each role can access and modify.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Permission</TableHead>
+                    <TableHead className="text-center">Owner</TableHead>
+                    <TableHead className="text-center">Admin</TableHead>
+                    <TableHead className="text-center">Member</TableHead>
+                    <TableHead className="text-center">Viewer</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {[
+                    { perm: "Manage team members", owner: true, admin: true, member: false, viewer: false },
+                    { perm: "Create & launch campaigns", owner: true, admin: true, member: true, viewer: false },
+                    { perm: "Import & manage leads", owner: true, admin: true, member: true, viewer: false },
+                    { perm: "Configure integrations", owner: true, admin: true, member: false, viewer: false },
+                    { perm: "Manage API keys", owner: true, admin: true, member: false, viewer: false },
+                    { perm: "Edit prompt templates", owner: true, admin: true, member: true, viewer: false },
+                    { perm: "View analytics", owner: true, admin: true, member: true, viewer: true },
+                    { perm: "Use AI agents", owner: true, admin: true, member: true, viewer: false },
+                    { perm: "Billing & subscription", owner: true, admin: false, member: false, viewer: false },
+                  ].map((row) => (
+                    <TableRow key={row.perm}>
+                      <TableCell className="font-medium text-sm">{row.perm}</TableCell>
+                      {[row.owner, row.admin, row.member, row.viewer].map((enabled, i) => (
+                        <TableCell key={i} className="text-center">
+                          <Switch defaultChecked={enabled} />
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+              <div className="mt-4 flex justify-end">
+                <Button>Save Permissions</Button>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

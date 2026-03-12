@@ -17,7 +17,11 @@ import {
   Tooltip,
   ResponsiveContainer,
   ComposedChart,
-  Line
+  Line,
+  FunnelChart,
+  Funnel,
+  LabelList,
+  Cell,
 } from "recharts";
 
 export default function Dashboard() {
@@ -97,7 +101,7 @@ export default function Dashboard() {
         <StatCard title="Web Conversions" value={displayStats.websiteConversions} icon={MousePointerClick} trend={{ value: 2, isPositive: false }} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
         <Card className="shadow-sm border-border/50">
           <CardHeader>
             <CardTitle>Outbound Performance</CardTitle>
@@ -151,6 +155,44 @@ export default function Dashboard() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="shadow-sm border-border/50">
+        <CardHeader>
+          <CardTitle>Conversion Funnel</CardTitle>
+          <CardDescription>Website visitor to closed deal pipeline</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="h-[300px] w-full">
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart
+                data={displayCharts.conversionFunnel}
+                layout="vertical"
+                margin={{ top: 10, right: 30, left: 80, bottom: 0 }}
+              >
+                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
+                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
+                <YAxis type="category" dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} width={70} />
+                <Tooltip
+                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
+                  itemStyle={{ color: 'hsl(var(--foreground))' }}
+                />
+                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={32}>
+                  {displayCharts.conversionFunnel.map((_: { stage: string; count: number }, index: number) => {
+                    const colors = [
+                      "hsl(var(--primary))",
+                      "hsl(var(--accent))",
+                      "#22c55e",
+                      "#f59e0b",
+                      "#ef4444",
+                    ];
+                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
+                  })}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </CardContent>
+      </Card>
     </motion.div>
   );
 }
