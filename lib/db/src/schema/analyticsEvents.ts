@@ -3,6 +3,7 @@ import { pgTable, serial, varchar, integer, timestamp, jsonb, text } from "drizz
 export const analyticsEventsTable = pgTable("analytics_events", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull(),
+  orgId: integer("org_id"),
   eventType: varchar("event_type", { length: 50 }).notNull(),
   entityType: varchar("entity_type", { length: 50 }),
   entityId: integer("entity_id"),

@@ -18,9 +18,13 @@ import {
 
 const router: IRouter = Router();
 
+function campaignOwnerFilter(req: Express.Request) {
+  return req.orgId ? eq(campaignsTable.orgId, req.orgId) : eq(campaignsTable.userId, req.user!.id);
+}
+
 router.get("/campaigns", async (req, res): Promise<void> => {
   const conditions = [];
-  conditions.push(eq(campaignsTable.userId, req.user!.id));
+  conditions.push(campaignOwnerFilter(req));
   if (req.query.type && typeof req.query.type === "string") conditions.push(eq(campaignsTable.type, req.query.type));
   if (req.query.status && typeof req.query.status === "string") conditions.push(eq(campaignsTable.status, req.query.status));
 
@@ -38,7 +42,8 @@ router.post("/campaigns", async (req, res): Promise<void> => {
     ...campaignData,
     emailSequenceCount: emailSequence?.length ?? 0,
     leadCount: leadIds?.length ?? 0,
-    userId: req.user?.id,
+    userId: req.user!.id,
+    orgId: req.orgId,
   }).returning();
   res.status(201).json(GetCampaignResponse.parse(campaign));
 });
@@ -46,7 +51,7 @@ router.post("/campaigns", async (req, res): Promise<void> => {
 router.get("/campaigns/:id", async (req, res): Promise<void> => {
   const params = GetCampaignParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, params.data.id), eq(campaignsTable.userId, req.user!.id)));
+  const [campaign] = await db.select().from(campaignsTable).where(and(eq(campaignsTable.id, params.data.id), campaignOwnerFilter(req)));
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json(GetCampaignResponse.parse(campaign));
 });
@@ -59,7 +64,7 @@ router.patch("/campaigns/:id", async (req, res): Promise<void> => {
   const { emailSequence, ...updateData } = parsed.data;
   const setData: Record<string, unknown> = { ...updateData };
   if (emailSequence) setData.emailSequenceCount = emailSequence.length;
-  const [campaign] = await db.update(campaignsTable).set(setData).where(and(eq(campaignsTable.id, params.data.id), eq(campaignsTable.userId, req.user!.id))).returning();
+  const [campaign] = await db.update(campaignsTable).set(setData).where(and(eq(campaignsTable.id, params.data.id), campaignOwnerFilter(req))).returning();
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json(UpdateCampaignResponse.parse(campaign));
 });
@@ -67,7 +72,7 @@ router.patch("/campaigns/:id", async (req, res): Promise<void> => {
 router.delete("/campaigns/:id", async (req, res): Promise<void> => {
   const params = DeleteCampaignParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [campaign] = await db.delete(campaignsTable).where(and(eq(campaignsTable.id, params.data.id), eq(campaignsTable.userId, req.user!.id))).returning();
+  const [campaign] = await db.delete(campaignsTable).where(and(eq(campaignsTable.id, params.data.id), campaignOwnerFilter(req))).returning();
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.sendStatus(204);
 });
@@ -77,7 +82,7 @@ router.post("/campaigns/:id/launch", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [campaign] = await db.update(campaignsTable)
     .set({ status: "active", launchedAt: new Date() })
-    .where(and(eq(campaignsTable.id, params.data.id), eq(campaignsTable.userId, req.user!.id))).returning();
+    .where(and(eq(campaignsTable.id, params.data.id), campaignOwnerFilter(req))).returning();
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json(LaunchCampaignResponse.parse(campaign));
 });
@@ -87,7 +92,7 @@ router.post("/campaigns/:id/pause", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const [campaign] = await db.update(campaignsTable)
     .set({ status: "paused" })
-    .where(and(eq(campaignsTable.id, params.data.id), eq(campaignsTable.userId, req.user!.id))).returning();
+    .where(and(eq(campaignsTable.id, params.data.id), campaignOwnerFilter(req))).returning();
   if (!campaign) { res.status(404).json({ error: "Campaign not found" }); return; }
   res.json(PauseCampaignResponse.parse(campaign));
 });

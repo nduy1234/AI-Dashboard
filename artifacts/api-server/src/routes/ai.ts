@@ -21,7 +21,8 @@ router.post("/ai/personalize", async (req, res): Promise<void> => {
   const parsed = AiPersonalizeEmailBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
-  const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, parsed.data.leadId), eq(leadsTable.userId, req.user!.id)));
+  const leadFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, parsed.data.leadId), leadFilter));
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
 
   const prompt = `Generate a personalized cold email for:
@@ -50,7 +51,8 @@ Respond with JSON: { "subjectLine": "...", "firstLine": "...", "body": "..." }`;
     action: "personalize_email",
     status: "completed",
     details: `Personalized email for ${lead.firstName} ${lead.lastName}`,
-    userId: req.user?.id,
+    userId: req.user!.id,
+    orgId: req.orgId,
   });
 
   res.json(AiPersonalizeEmailResponse.parse(result));
@@ -83,7 +85,8 @@ Use delays like: "immediate", "2 days", "4 days", "7 days", etc.`;
     action: "generate_sequence",
     status: "completed",
     details: `Generated ${parsed.data.numberOfEmails}-email sequence for ${parsed.data.campaignType}`,
-    userId: req.user?.id,
+    userId: req.user!.id,
+    orgId: req.orgId,
   });
 
   res.json(AiGenerateSequenceResponse.parse(result));
@@ -156,8 +159,9 @@ router.post("/ai/reactivation", async (req, res): Promise<void> => {
   const parsed = AiGenerateReactivationBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
 
+  const leadFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
   const leads = await db.select().from(leadsTable).where(
-    and(inArray(leadsTable.id, parsed.data.leadIds), eq(leadsTable.userId, req.user!.id))
+    and(inArray(leadsTable.id, parsed.data.leadIds), leadFilter)
   );
 
   const leadSummaries = leads.map(l => `- ${l.firstName} ${l.lastName}, ${l.title} at ${l.company} (Industry: ${l.industry || "Unknown"}, Last contact: ${l.lastContactDate ? l.lastContactDate.toISOString().split("T")[0] : "unknown"}, Deal stage: ${l.dealStage || "none"})`).join("\n");
@@ -193,7 +197,8 @@ Each message should be unique, referencing the lead's company and role. Keep the
     action: "generate_reactivation",
     status: "completed",
     details: `Generated AI reactivation messages for ${parsed.data.leadIds.length} leads`,
-    userId: req.user?.id,
+    userId: req.user!.id,
+    orgId: req.orgId,
   });
 
   res.json(AiGenerateReactivationResponse.parse({ messages: messagesWithIds }));

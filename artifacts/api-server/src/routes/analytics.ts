@@ -9,12 +9,14 @@ import {
 const router: IRouter = Router();
 
 router.get("/analytics/overview", async (req, res): Promise<void> => {
+  const campaignFilter = req.orgId ? eq(campaignsTable.orgId, req.orgId) : eq(campaignsTable.userId, req.user!.id);
+
   const [stats] = await db.select({
     sent: sql<number>`coalesce(sum(sent_count), 0)::int`,
     opens: sql<number>`coalesce(sum(open_count), 0)::int`,
     replies: sql<number>`coalesce(sum(reply_count), 0)::int`,
     meetings: sql<number>`coalesce(sum(meetings_booked), 0)::int`,
-  }).from(campaignsTable).where(eq(campaignsTable.userId, req.user!.id));
+  }).from(campaignsTable).where(campaignFilter);
 
   const emailsSent = stats?.sent ?? 0;
   const opens = stats?.opens ?? 0;
@@ -43,8 +45,10 @@ router.get("/analytics/overview", async (req, res): Promise<void> => {
 });
 
 router.get("/analytics/campaigns", async (req, res): Promise<void> => {
+  const campaignFilter = req.orgId ? eq(campaignsTable.orgId, req.orgId) : eq(campaignsTable.userId, req.user!.id);
+
   const campaigns = await db.select().from(campaignsTable)
-    .where(eq(campaignsTable.userId, req.user!.id))
+    .where(campaignFilter)
     .orderBy(campaignsTable.createdAt);
   const analytics = campaigns.map(c => ({
     campaignId: c.id,

@@ -9,7 +9,8 @@ router.get("/agent-logs", async (req, res): Promise<void> => {
   const limit = req.query.limit ? parseInt(req.query.limit as string, 10) : 50;
   const agentType = req.query.agentType as string | undefined;
 
-  const conditions = [eq(agentLogsTable.userId, req.user!.id)];
+  const ownerFilter = req.orgId ? eq(agentLogsTable.orgId, req.orgId) : eq(agentLogsTable.userId, req.user!.id);
+  const conditions = [ownerFilter];
   if (agentType) conditions.push(eq(agentLogsTable.agentType, agentType));
 
   const logs = await db.select().from(agentLogsTable)

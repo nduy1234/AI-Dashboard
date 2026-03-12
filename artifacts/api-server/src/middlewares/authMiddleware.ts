@@ -16,12 +16,13 @@ declare global {
 
     interface Request {
       isAuthenticated(): this is AuthedRequest;
-
       user?: User | undefined;
+      orgId?: number;
     }
 
     export interface AuthedRequest {
       user: User;
+      orgId?: number;
     }
   }
 }

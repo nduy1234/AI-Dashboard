@@ -32,7 +32,11 @@ router.get("/leads", async (req, res): Promise<void> => {
     );
   }
 
-  if (req.user?.id) conditions.push(eq(leadsTable.userId, req.user.id));
+  if (req.orgId) {
+    conditions.push(eq(leadsTable.orgId, req.orgId));
+  } else {
+    conditions.push(eq(leadsTable.userId, req.user!.id));
+  }
 
   const leads = await db.select().from(leadsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -47,14 +51,15 @@ router.post("/leads", async (req, res): Promise<void> => {
     res.status(400).json({ error: parsed.error.message });
     return;
   }
-  const [lead] = await db.insert(leadsTable).values({ ...parsed.data, userId: req.user?.id }).returning();
+  const [lead] = await db.insert(leadsTable).values({ ...parsed.data, userId: req.user!.id, orgId: req.orgId }).returning();
   res.status(201).json(GetLeadResponse.parse(lead));
 });
 
 router.get("/leads/:id", async (req, res): Promise<void> => {
   const params = GetLeadParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, params.data.id), eq(leadsTable.userId, req.user!.id)));
+  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, params.data.id), ownerFilter));
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json(GetLeadResponse.parse(lead));
 });
@@ -64,7 +69,8 @@ router.patch("/leads/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateLeadBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const [lead] = await db.update(leadsTable).set(parsed.data).where(and(eq(leadsTable.id, params.data.id), eq(leadsTable.userId, req.user!.id))).returning();
+  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const [lead] = await db.update(leadsTable).set(parsed.data).where(and(eq(leadsTable.id, params.data.id), ownerFilter)).returning();
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json(UpdateLeadResponse.parse(lead));
 });
@@ -72,7 +78,8 @@ router.patch("/leads/:id", async (req, res): Promise<void> => {
 router.delete("/leads/:id", async (req, res): Promise<void> => {
   const params = DeleteLeadParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const [lead] = await db.delete(leadsTable).where(and(eq(leadsTable.id, params.data.id), eq(leadsTable.userId, req.user!.id))).returning();
+  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const [lead] = await db.delete(leadsTable).where(and(eq(leadsTable.id, params.data.id), ownerFilter)).returning();
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.sendStatus(204);
 });
@@ -84,7 +91,7 @@ router.post("/leads/import", async (req, res): Promise<void> => {
     { firstName: "Emily", lastName: "Thompson", email: "emily.t@startuplab.io", company: "StartupLab", title: "Head of Growth", source: "apollo", industry: "SaaS", companySize: "50-200" },
   ];
 
-  const inserted = await db.insert(leadsTable).values(sampleLeads.map(l => ({ ...l, userId: req.user?.id }))).returning();
+  const inserted = await db.insert(leadsTable).values(sampleLeads.map(l => ({ ...l, userId: req.user!.id, orgId: req.orgId }))).returning();
   res.json(ImportLeadsResponse.parse({ imported: inserted.length, duplicates: 0, total: inserted.length }));
 });
 
@@ -92,12 +99,13 @@ router.post("/leads/verify", async (req, res): Promise<void> => {
   const { leadIds } = req.body;
   if (!Array.isArray(leadIds)) { res.status(400).json({ error: "leadIds must be an array" }); return; }
 
+  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
   let verified = 0;
   for (const id of leadIds) {
     const isValid = Math.random() > 0.15;
     const [updated] = await db.update(leadsTable)
       .set({ verified: isValid, status: isValid ? "verified" : "invalid" })
-      .where(and(eq(leadsTable.id, id), eq(leadsTable.userId, req.user!.id)))
+      .where(and(eq(leadsTable.id, id), ownerFilter))
       .returning();
     if (updated && isValid) verified++;
   }

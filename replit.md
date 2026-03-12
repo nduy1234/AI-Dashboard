@@ -55,7 +55,7 @@ artifacts-monorepo/
 
 Tables: `users`, `sessions`, `leads`, `campaigns`, `campaign_leads`, `email_accounts`, `integrations`, `knowledge_base_docs`, `agent_logs`, `api_keys`, `prompt_templates`, `analytics_events`, `team_members`, `organizations`, `org_memberships`
 
-Multi-tenant: Each user gets an auto-created organization on first login. Leads, campaigns, email accounts, and integrations carry both `userId` and `orgId`. Team members are scoped via `org_memberships`.
+Multi-tenant: Each user gets an auto-created organization on first login. All data tables carry both `userId` and `orgId`. The `requireAuth` middleware resolves `orgId` from `org_memberships` and sets `req.orgId`. All route handlers scope queries by `orgId` (falling back to `userId` when no org membership exists). Inserts always propagate both `userId` and `orgId`.
 
 ## API Routes (all under `/api`)
 

@@ -1,4 +1,4 @@
-import { pgTable, serial, varchar, text, jsonb, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, text, jsonb, timestamp, integer } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
 
@@ -10,6 +10,7 @@ export const agentLogsTable = pgTable("agent_logs", {
   details: text("details"),
   metadata: jsonb("metadata"),
   userId: varchar("user_id"),
+  orgId: integer("org_id"),
   timestamp: timestamp("timestamp", { withTimezone: true }).notNull().defaultNow(),
 });
 

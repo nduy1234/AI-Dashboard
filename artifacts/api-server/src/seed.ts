@@ -57,27 +57,27 @@ export async function seedDemoDataForUser(userId: string) {
   ]);
 
   await db.insert(agentLogsTable).values([
-    { agentType: "outbound", action: "lead_sourcing", status: "completed", details: "Sourced 50 leads from Apollo matching ICP criteria", userId },
-    { agentType: "outbound", action: "email_verification", status: "completed", details: "Verified 48/50 emails via MillionVerifier", userId },
-    { agentType: "outbound", action: "personalize_email", status: "completed", details: "Generated personalized emails for 48 verified leads", userId },
-    { agentType: "outbound", action: "send_campaign", status: "completed", details: "Launched Q1 Enterprise Outbound campaign", userId },
-    { agentType: "reactivation", action: "crm_import", status: "completed", details: "Imported 120 dormant leads from HubSpot", userId },
-    { agentType: "reactivation", action: "generate_reactivation", status: "completed", details: "Generated reactivation sequences for 95 leads", userId },
-    { agentType: "conversion", action: "chat_interaction", status: "completed", details: "Qualified website visitor from TechCorp", userId },
-    { agentType: "conversion", action: "booking_scheduled", status: "completed", details: "Auto-scheduled demo with qualified lead", userId },
+    { agentType: "outbound", action: "lead_sourcing", status: "completed", details: "Sourced 50 leads from Apollo matching ICP criteria", userId, orgId },
+    { agentType: "outbound", action: "email_verification", status: "completed", details: "Verified 48/50 emails via MillionVerifier", userId, orgId },
+    { agentType: "outbound", action: "personalize_email", status: "completed", details: "Generated personalized emails for 48 verified leads", userId, orgId },
+    { agentType: "outbound", action: "send_campaign", status: "completed", details: "Launched Q1 Enterprise Outbound campaign", userId, orgId },
+    { agentType: "reactivation", action: "crm_import", status: "completed", details: "Imported 120 dormant leads from HubSpot", userId, orgId },
+    { agentType: "reactivation", action: "generate_reactivation", status: "completed", details: "Generated reactivation sequences for 95 leads", userId, orgId },
+    { agentType: "conversion", action: "chat_interaction", status: "completed", details: "Qualified website visitor from TechCorp", userId, orgId },
+    { agentType: "conversion", action: "booking_scheduled", status: "completed", details: "Auto-scheduled demo with qualified lead", userId, orgId },
   ]);
 
   await db.insert(knowledgeBaseDocsTable).values([
-    { title: "Product Overview", type: "documentation", content: "Our AI Revenue Platform helps B2B companies automate their entire revenue pipeline through three autonomous agents: Outbound, Reactivation, and Conversion.", userId },
-    { title: "Pricing FAQ", type: "faq", content: "Q: What are your pricing tiers?\nA: We offer Starter ($499/mo), Growth ($999/mo), and Enterprise (custom pricing) plans.\n\nQ: Is there a free trial?\nA: Yes, we offer a 14-day free trial with full access to all features.", userId },
-    { title: "Integration Guide", type: "documentation", content: "Our platform integrates with Apollo, MillionVerifier, Instantly, Mailwarm, GoHighLevel, HubSpot, Calendly, and Tidio. API keys can be configured in the Integrations settings.", userId },
+    { title: "Product Overview", type: "documentation", content: "Our AI Revenue Platform helps B2B companies automate their entire revenue pipeline through three autonomous agents: Outbound, Reactivation, and Conversion.", userId, orgId },
+    { title: "Pricing FAQ", type: "faq", content: "Q: What are your pricing tiers?\nA: We offer Starter ($499/mo), Growth ($999/mo), and Enterprise (custom pricing) plans.\n\nQ: Is there a free trial?\nA: Yes, we offer a 14-day free trial with full access to all features.", userId, orgId },
+    { title: "Integration Guide", type: "documentation", content: "Our platform integrates with Apollo, MillionVerifier, Instantly, Mailwarm, GoHighLevel, HubSpot, Calendly, and Tidio. API keys can be configured in the Integrations settings.", userId, orgId },
   ]);
 
   await db.insert(promptTemplatesTable).values([
-    { name: "Cold Outreach - First Touch", type: "outbound", template: "Hi {{firstName}},\n\nI noticed {{company}} is {{observation}}. We help companies like yours {{valueProposition}}.\n\nWould you be open to a quick 15-minute call this week?\n\nBest,\n{{senderName}}", userId },
-    { name: "Follow-up - No Reply", type: "outbound", template: "Hi {{firstName}},\n\nJust wanted to bump this to the top of your inbox. I understand you're busy at {{company}}.\n\n{{oneLineValue}}\n\nWorth a quick chat?\n\n{{senderName}}", userId },
-    { name: "Reactivation - Lost Deal", type: "reactivation", template: "Hi {{firstName}},\n\nWe last connected about {{previousTopic}}. Since then, we've {{newDevelopment}}.\n\nI'd love to show you what's changed. Do you have 15 minutes this week?\n\nBest,\n{{senderName}}", userId },
-    { name: "Website Chat - Qualifier", type: "conversion", template: "Thanks for visiting! I'd love to help you find the right solution.\n\nCould you tell me a bit about:\n1. Your company size\n2. The main challenge you're looking to solve\n3. Your timeline for implementation\n\nThis will help me point you in the right direction!", userId },
+    { name: "Cold Outreach - First Touch", type: "outbound", template: "Hi {{firstName}},\n\nI noticed {{company}} is {{observation}}. We help companies like yours {{valueProposition}}.\n\nWould you be open to a quick 15-minute call this week?\n\nBest,\n{{senderName}}", userId, orgId },
+    { name: "Follow-up - No Reply", type: "outbound", template: "Hi {{firstName}},\n\nJust wanted to bump this to the top of your inbox. I understand you're busy at {{company}}.\n\n{{oneLineValue}}\n\nWorth a quick chat?\n\n{{senderName}}", userId, orgId },
+    { name: "Reactivation - Lost Deal", type: "reactivation", template: "Hi {{firstName}},\n\nWe last connected about {{previousTopic}}. Since then, we've {{newDevelopment}}.\n\nI'd love to show you what's changed. Do you have 15 minutes this week?\n\nBest,\n{{senderName}}", userId, orgId },
+    { name: "Website Chat - Qualifier", type: "conversion", template: "Thanks for visiting! I'd love to help you find the right solution.\n\nCould you tell me a bit about:\n1. Your company size\n2. The main challenge you're looking to solve\n3. Your timeline for implementation\n\nThis will help me point you in the right direction!", userId, orgId },
   ]);
 
   console.log(`Database seeded with demo data for user ${userId} in org ${orgId}`);
