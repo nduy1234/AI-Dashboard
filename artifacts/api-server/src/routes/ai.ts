@@ -160,26 +160,43 @@ router.post("/ai/reactivation", async (req, res): Promise<void> => {
     and(inArray(leadsTable.id, parsed.data.leadIds), eq(leadsTable.userId, req.user!.id))
   );
 
-  const allMessages = [];
-  for (const leadId of parsed.data.leadIds) {
-    const lead = leads.find(l => l.id === leadId) || { firstName: "Contact", lastName: "", company: "Company", title: "Professional" };
-    allMessages.push({
-      leadId,
-      channel: parsed.data.channel,
-      subject: `Re-engage with ${lead.firstName} - New Opportunity`,
-      body: `Hi ${lead.firstName},\n\nI noticed we previously connected regarding your needs at ${lead.company}. Since then, we've made significant improvements that I think would be valuable for you.\n\nWould you be open to a quick 15-minute call to explore how we can help?\n\nBest regards`,
-    });
-  }
+  const leadSummaries = leads.map(l => `- ${l.firstName} ${l.lastName}, ${l.title} at ${l.company} (Industry: ${l.industry || "Unknown"}, Last contact: ${l.lastContactDate ? l.lastContactDate.toISOString().split("T")[0] : "unknown"}, Deal stage: ${l.dealStage || "none"})`).join("\n");
+
+  const prompt = `Generate personalized reactivation ${parsed.data.channel} messages for the following dormant leads.
+${parsed.data.reason ? `Reactivation reason: ${parsed.data.reason}` : ""}
+
+Leads:
+${leadSummaries}
+
+Respond with JSON: { "messages": [{ "leadId": <number>, "channel": "${parsed.data.channel}", "subject": "...", "body": "..." }] }
+Each message should be unique, referencing the lead's company and role. Keep the tone warm and professional. Include a clear call-to-action for a brief meeting.`;
+
+  const completion = await openai.chat.completions.create({
+    model: "gpt-4o",
+    max_completion_tokens: 8192,
+    messages: [{ role: "user", content: prompt }],
+    response_format: { type: "json_object" },
+  });
+
+  const content = completion.choices[0]?.message?.content || '{"messages":[]}';
+  const result = JSON.parse(content);
+
+  const messagesWithIds = (result.messages || []).map((msg: { leadId?: number; channel?: string; subject?: string; body?: string }, idx: number) => ({
+    leadId: msg.leadId || parsed.data.leadIds[idx],
+    channel: msg.channel || parsed.data.channel,
+    subject: msg.subject || "Reconnecting",
+    body: msg.body || "",
+  }));
 
   await db.insert(agentLogsTable).values({
     agentType: "reactivation",
     action: "generate_reactivation",
     status: "completed",
-    details: `Generated reactivation messages for ${parsed.data.leadIds.length} leads`,
+    details: `Generated AI reactivation messages for ${parsed.data.leadIds.length} leads`,
     userId: req.user?.id,
   });
 
-  res.json(AiGenerateReactivationResponse.parse({ messages: allMessages }));
+  res.json(AiGenerateReactivationResponse.parse({ messages: messagesWithIds }));
 });
 
 export default router;

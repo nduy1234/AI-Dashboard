@@ -8,7 +8,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen w-full flex bg-background">
-      {/* Left side - Content */}
+      
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 lg:px-24 xl:px-32 relative z-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -58,7 +58,7 @@ export default function LoginPage() {
         </motion.div>
       </div>
 
-      {/* Right side - Image/Visuals */}
+      
       <div className="hidden lg:flex flex-1 relative bg-muted overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-background z-10 opacity-60"></div>
         <img 
@@ -67,7 +67,7 @@ export default function LoginPage() {
           className="absolute inset-0 w-full h-full object-cover opacity-80 mix-blend-overlay"
         />
         
-        {/* Floating UI Elements */}
+        
         <motion.div 
           initial={{ opacity: 0, x: 50 }}
           animate={{ opacity: 1, x: 0 }}

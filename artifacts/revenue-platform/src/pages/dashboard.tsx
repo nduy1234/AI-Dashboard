@@ -41,7 +41,7 @@ export default function Dashboard() {
     );
   }
 
-  // Fallback mock data if API is empty/missing
+  
   const displayStats = stats || {
     totalProspects: 12450,
     emailsSent: 45200,

@@ -19,7 +19,6 @@ export function Header() {
   return (
     <header className="h-16 flex items-center justify-between px-8 bg-background/80 backdrop-blur-md border-b border-border/50 sticky top-0 z-30">
       <div className="flex items-center">
-        {/* Breadcrumbs or page title could go here */}
       </div>
 
       <div className="flex items-center gap-4">
