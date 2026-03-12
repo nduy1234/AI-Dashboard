@@ -24,6 +24,9 @@ import {
   getListTeamMembersQueryKey,
   getListApiKeysQueryKey,
   getListPromptTemplatesQueryKey,
+  type TeamMember,
+  type ApiKey,
+  type PromptTemplate,
 } from "@workspace/api-client-react";
 
 export default function SettingsPage() {
@@ -155,7 +158,7 @@ export default function SettingsPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(teamMembers ?? []).map((member: any) => (
+                  {(teamMembers ?? []).map((member: TeamMember) => (
                     <TableRow key={member.id}>
                       <TableCell className="font-medium">
                         <div className="flex items-center gap-2">
@@ -221,7 +224,7 @@ export default function SettingsPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(apiKeys ?? []).map((key: any) => (
+                    {(apiKeys ?? []).map((key: ApiKey) => (
                       <TableRow key={key.id}>
                         <TableCell className="font-medium">{key.name}</TableCell>
                         <TableCell>
@@ -279,7 +282,7 @@ export default function SettingsPage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {(promptTemplates ?? []).map((template: any) => (
+                  {(promptTemplates ?? []).map((template: PromptTemplate) => (
                     <Card key={template.id} className="bg-muted/30">
                       <CardContent className="pt-4">
                         <div className="flex items-center justify-between mb-2">

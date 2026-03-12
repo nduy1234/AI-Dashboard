@@ -19,7 +19,7 @@ import SettingsPage from "@/pages/settings";
 
 const queryClient = new QueryClient();
 
-function ProtectedRoute({ component: Component, ...rest }: any) {
+function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType } & Record<string, unknown>) {
   const { isAuthenticated, isLoading } = useAuth();
   
   if (isLoading) {

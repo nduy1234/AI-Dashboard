@@ -11,6 +11,7 @@ import {
   getAnalyticsCampaigns,
   getGetAnalyticsOverviewQueryKey,
   getGetAnalyticsCampaignsQueryKey,
+  type CampaignAnalytics,
 } from "@workspace/api-client-react";
 import {
   AreaChart,
@@ -197,7 +198,7 @@ export default function Analytics() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {(campaignAnalytics ?? []).map((c: any) => (
+                    {(campaignAnalytics ?? []).map((c: CampaignAnalytics) => (
                       <TableRow key={c.campaignId}>
                         <TableCell className="font-medium">{c.campaignName}</TableCell>
                         <TableCell className="text-right">{c.sent?.toLocaleString()}</TableCell>
