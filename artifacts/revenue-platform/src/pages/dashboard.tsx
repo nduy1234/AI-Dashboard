@@ -18,9 +18,6 @@ import {
   ResponsiveContainer,
   ComposedChart,
   Line,
-  FunnelChart,
-  Funnel,
-  LabelList,
   Cell,
 } from "recharts";
 

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { pgTable, serial, varchar, timestamp } from "drizzle-orm/pg-core";
+import { pgTable, serial, varchar, timestamp, integer } from "drizzle-orm/pg-core";
 
 export const organizationsTable = pgTable("organizations", {
   id: serial("id").primaryKey(),
@@ -16,7 +16,7 @@ export type InsertOrganization = typeof organizationsTable.$inferInsert;
 
 export const orgMembershipsTable = pgTable("org_memberships", {
   id: serial("id").primaryKey(),
-  orgId: serial("org_id").notNull(),
+  orgId: integer("org_id").notNull(),
   userId: varchar("user_id").notNull(),
   role: varchar("role", { length: 50 }).notNull().default("member"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

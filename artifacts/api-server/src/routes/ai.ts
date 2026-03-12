@@ -17,6 +17,14 @@ import {
 
 const router: IRouter = Router();
 
+function safeParseJson(content: string, fallback: Record<string, unknown> = {}): Record<string, unknown> {
+  try {
+    return JSON.parse(content) as Record<string, unknown>;
+  } catch {
+    return fallback;
+  }
+}
+
 router.post("/ai/personalize", async (req, res): Promise<void> => {
   const parsed = AiPersonalizeEmailBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
@@ -44,7 +52,7 @@ Respond with JSON: { "subjectLine": "...", "firstLine": "...", "body": "..." }`;
   });
 
   const content = completion.choices[0]?.message?.content || '{}';
-  const result = JSON.parse(content);
+  const result = safeParseJson(content);
 
   await db.insert(agentLogsTable).values({
     agentType: "outbound",
@@ -78,7 +86,7 @@ Use delays like: "immediate", "2 days", "4 days", "7 days", etc.`;
   });
 
   const content = completion.choices[0]?.message?.content || '{"emails":[]}';
-  const result = JSON.parse(content);
+  const result = safeParseJson(content, { emails: [] });
 
   await db.insert(agentLogsTable).values({
     agentType: "outbound",
@@ -113,7 +121,7 @@ Respond with JSON: { "score": 0-100, "recommendation": "hot/warm/cold", "reasoni
   });
 
   const content = completion.choices[0]?.message?.content || '{}';
-  const result = JSON.parse(content);
+  const result = safeParseJson(content);
 
   res.json(AiQualifyLeadResponse.parse(result));
 });
@@ -150,7 +158,7 @@ Respond with JSON: { "response": "...", "qualification": { "isQualified": boolea
   });
 
   const content = completion.choices[0]?.message?.content || '{}';
-  const result = JSON.parse(content);
+  const result = safeParseJson(content);
 
   res.json(AiChatResponse.parse(result));
 });
@@ -183,7 +191,7 @@ Each message should be unique, referencing the lead's company and role. Keep the
   });
 
   const content = completion.choices[0]?.message?.content || '{"messages":[]}';
-  const result = JSON.parse(content);
+  const result = safeParseJson(content, { messages: [] });
 
   const messagesWithIds = (result.messages || []).map((msg: { leadId?: number; channel?: string; subject?: string; body?: string }, idx: number) => ({
     leadId: msg.leadId || parsed.data.leadIds[idx],
