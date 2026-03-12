@@ -8,7 +8,6 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-screen w-full flex bg-background">
-      
       <div className="flex-1 flex flex-col justify-center px-8 sm:px-16 lg:px-24 xl:px-32 relative z-10">
         <motion.div 
           initial={{ opacity: 0, y: 20 }}
@@ -25,9 +24,7 @@ export default function LoginPage() {
             </span>
           </div>
 
-          <h1 className="text-4xl sm:text-5xl font-display font-extrabold tracking-tight text-foreground mb-6 leading-tight">
-            The Revenue Command Center
-          </h1>
+          <h1 className="text-4xl sm:text-5xl font-display font-extrabold tracking-tight text-foreground mb-6 leading-tight">AI-Powered Growth Systems for Predictable Revenue</h1>
           <p className="text-lg text-muted-foreground mb-10 leading-relaxed">
             Deploy autonomous AI agents to source leads, reactivate CRM contacts, and convert website visitors into booked meetings.
           </p>
@@ -57,8 +54,6 @@ export default function LoginPage() {
           </div>
         </motion.div>
       </div>
-
-      
       <div className="hidden lg:flex flex-1 relative bg-muted overflow-hidden">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/20 via-background to-background z-10 opacity-60"></div>
         <img 
