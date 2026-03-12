@@ -95,8 +95,11 @@ router.post("/leads/verify", async (req, res): Promise<void> => {
   let verified = 0;
   for (const id of leadIds) {
     const isValid = Math.random() > 0.15;
-    await db.update(leadsTable).set({ verified: isValid, status: isValid ? "verified" : "invalid" }).where(eq(leadsTable.id, id));
-    if (isValid) verified++;
+    const [updated] = await db.update(leadsTable)
+      .set({ verified: isValid, status: isValid ? "verified" : "invalid" })
+      .where(and(eq(leadsTable.id, id), eq(leadsTable.userId, req.user!.id)))
+      .returning();
+    if (updated && isValid) verified++;
   }
 
   res.json(VerifyLeadEmailsResponse.parse({ verified, invalid: leadIds.length - verified, total: leadIds.length }));

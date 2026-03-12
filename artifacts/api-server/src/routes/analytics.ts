@@ -14,7 +14,7 @@ router.get("/analytics/overview", async (req, res): Promise<void> => {
     opens: sql<number>`coalesce(sum(open_count), 0)::int`,
     replies: sql<number>`coalesce(sum(reply_count), 0)::int`,
     meetings: sql<number>`coalesce(sum(meetings_booked), 0)::int`,
-  }).from(campaignsTable);
+  }).from(campaignsTable).where(eq(campaignsTable.userId, req.user!.id));
 
   const emailsSent = stats?.sent ?? 0;
   const opens = stats?.opens ?? 0;
