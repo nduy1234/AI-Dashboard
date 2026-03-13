@@ -34,7 +34,7 @@ export default function LoginPage() {
             size="lg" 
             className="w-full sm:w-auto text-base h-14 px-8 rounded-xl bg-primary hover:bg-primary/90 text-primary-foreground shadow-xl shadow-primary/25 hover:-translate-y-0.5 transition-all"
           >
-            Sign In with Replit
+            Sign in
             <ArrowRight className="ml-2 w-5 h-5" />
           </Button>
 
