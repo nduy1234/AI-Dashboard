@@ -16,9 +16,11 @@ export default function LoginPage() {
           className="max-w-md"
         >
           <div className="flex items-center gap-3 mb-12">
-            <div className="bg-gradient-to-tr from-primary to-accent p-2 rounded-xl shadow-lg shadow-primary/25">
-              <Bot className="w-8 h-8 text-white" />
-            </div>
+            <img
+              src={`${import.meta.env.BASE_URL}logo.png`}
+              alt="Agentic AI logo"
+              className="w-12 h-12 rounded-xl shadow-lg"
+            />
             <span className="font-display font-bold text-2xl tracking-tight text-foreground">
               Agentic AI
             </span>
