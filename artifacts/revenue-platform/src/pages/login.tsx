@@ -21,9 +21,7 @@ export default function LoginPage() {
               alt="Agentic AI logo"
               className="w-12 h-12 rounded-xl shadow-lg"
             />
-            <span className="font-display font-bold text-2xl tracking-tight text-foreground">
-              Agentic AI
-            </span>
+            <span className="font-display font-bold text-2xl tracking-tight text-foreground">Advan AI</span>
           </div>
 
           <h1 className="text-4xl sm:text-5xl font-display font-extrabold tracking-tight text-foreground mb-6 leading-tight">AI-Powered Growth Systems for Predictable Revenue</h1>
