@@ -102,12 +102,12 @@ export default function Campaigns() {
                     </span>
                   </td>
                   <td className="px-6 py-4 text-muted-foreground capitalize">{campaign.type}</td>
-                  <td className="px-6 py-4">{campaign.sentCount.toLocaleString()}</td>
+                  <td className="px-6 py-4">{(campaign.sentCount ?? 0).toLocaleString()}</td>
                   <td className="px-6 py-4">
-                    {campaign.sentCount > 0 ? ((campaign.openCount / campaign.sentCount) * 100).toFixed(1) + '%' : '-'}
+                    {(campaign.sentCount ?? 0) > 0 ? (((campaign.openCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : '-'}
                   </td>
                   <td className="px-6 py-4">
-                    {campaign.sentCount > 0 ? ((campaign.replyCount / campaign.sentCount) * 100).toFixed(1) + '%' : '-'}
+                    {(campaign.sentCount ?? 0) > 0 ? (((campaign.replyCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : '-'}
                   </td>
                   <td className="px-6 py-4 font-semibold text-foreground">{campaign.meetingsBooked}</td>
                   <td className="px-6 py-4 text-right">

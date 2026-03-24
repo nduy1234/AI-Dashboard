@@ -175,7 +175,7 @@ router.post("/ai/reactivation", async (req, res): Promise<void> => {
   const leadSummaries = leads.map(l => `- ${l.firstName} ${l.lastName}, ${l.title} at ${l.company} (Industry: ${l.industry || "Unknown"}, Last contact: ${l.lastContactDate ? l.lastContactDate.toISOString().split("T")[0] : "unknown"}, Deal stage: ${l.dealStage || "none"})`).join("\n");
 
   const prompt = `Generate personalized reactivation ${parsed.data.channel} messages for the following dormant leads.
-${parsed.data.reason ? `Reactivation reason: ${parsed.data.reason}` : ""}
+${parsed.data.context ? `Reactivation context: ${parsed.data.context}` : ""}
 
 Leads:
 ${leadSummaries}
@@ -193,7 +193,7 @@ Each message should be unique, referencing the lead's company and role. Keep the
   const content = completion.choices[0]?.message?.content || '{"messages":[]}';
   const result = safeParseJson(content, { messages: [] });
 
-  const messagesWithIds = (result.messages || []).map((msg: { leadId?: number; channel?: string; subject?: string; body?: string }, idx: number) => ({
+  const messagesWithIds = (result.messages as Array<{ leadId?: number; channel?: string; subject?: string; body?: string }> || []).map((msg, idx: number) => ({
     leadId: msg.leadId || parsed.data.leadIds[idx],
     channel: msg.channel || parsed.data.channel,
     subject: msg.subject || "Reconnecting",

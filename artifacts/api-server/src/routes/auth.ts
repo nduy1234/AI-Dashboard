@@ -25,7 +25,11 @@ const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 const router: IRouter = Router();
 
 function getOrigin(req: Request): string {
-  const proto = req.headers["x-forwarded-proto"] || "https";
+  if (process.env.PUBLIC_URL) {
+    return process.env.PUBLIC_URL;
+  }
+  const isLocal = req.hostname === "localhost" || req.hostname === "127.0.0.1";
+  const proto = req.headers["x-forwarded-proto"] || (isLocal ? "http" : "https");
   const host =
     req.headers["x-forwarded-host"] || req.headers["host"] || "localhost";
   return `${proto}://${host}`;
@@ -58,15 +62,21 @@ function getSafeReturnTo(value: unknown): string {
   return value;
 }
 
+import crypto from "crypto";
+
+function generateDeterministicUuid(seed: string): string {
+  const hash = crypto.createHash("md5").update(seed).digest("hex");
+  // Format as a valid UUID: 8-4-4-4-12
+  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
+}
+
 async function upsertUser(claims: Record<string, unknown>) {
   const userData = {
-    id: claims.sub as string,
+    id: generateDeterministicUuid(claims.sub as string),
     email: (claims.email as string) || null,
-    firstName: (claims.first_name as string) || null,
-    lastName: (claims.last_name as string) || null,
-    profileImageUrl: (claims.profile_image_url || claims.picture) as
-      | string
-      | null,
+    firstName: (claims.given_name as string) || null,
+    lastName: (claims.family_name as string) || null,
+    profileImageUrl: (claims.picture as string) || null,
   };
 
   const [user] = await db
@@ -104,7 +114,7 @@ router.get("/login", async (req: Request, res: Response) => {
 
   const redirectTo = oidc.buildAuthorizationUrl(config, {
     redirect_uri: callbackUrl,
-    scope: "openid email profile offline_access",
+    scope: "openid email profile",
     code_challenge: codeChallenge,
     code_challenge_method: "S256",
     prompt: "login consent",
@@ -203,7 +213,6 @@ router.get("/logout", async (req: Request, res: Response) => {
   await clearSession(res, sid);
 
   const endSessionUrl = oidc.buildEndSessionUrl(config, {
-    client_id: process.env.REPL_ID!,
     post_logout_redirect_uri: origin,
   });
 

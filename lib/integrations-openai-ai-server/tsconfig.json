@@ -6,6 +6,10 @@
     "emitDeclarationOnly": true,
     "outDir": "dist",
     "rootDir": "src",
+    "typeRoots": [
+      "../../node_modules/.pnpm/@types+node@25.3.5/node_modules/@types",
+      "../../node_modules/@types"
+    ],
     "types": ["node"]
   },
   "include": ["src"]

@@ -32,11 +32,11 @@ export default function Analytics() {
   const [activeTab, setActiveTab] = useState("overview");
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: getGetAnalyticsOverviewQueryKey(),
-    queryFn: () => getAnalyticsOverview({ credentials: "include" }),
+    queryFn: () => getAnalyticsOverview(),
   });
   const { data: campaignAnalytics, isLoading: campaignsLoading } = useQuery({
     queryKey: getGetAnalyticsCampaignsQueryKey(),
-    queryFn: () => getAnalyticsCampaigns({ credentials: "include" }),
+    queryFn: () => getAnalyticsCampaigns(),
   });
 
   const kpis = [

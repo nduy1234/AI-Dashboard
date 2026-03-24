@@ -1,7 +1,8 @@
 import app from "./app";
 import { seedDatabase } from "./seed";
 
-const rawPort = process.env["PORT"];
+const isDev = process.env.NODE_ENV !== "production";
+const rawPort = process.env["PORT"] || (isDev ? "5000" : undefined);
 
 if (!rawPort) {
   throw new Error(
