@@ -65,6 +65,8 @@ GOOGLE_CLIENT_SECRET="..."
 PUBLIC_URL="http://localhost:3000"
 PORT="5000"
 VITE_PORT="3000"
+# Optional: set to "false" to disable API docs routes
+SWAGGER_DOCS_ENABLED="true"
 ```
 
 ### 4. Database Setup
@@ -80,6 +82,31 @@ pnpm -r --parallel run dev
 ```
 - Frontend: `http://localhost:3000`
 - Backend API: `http://localhost:5000`
+
+### 6. API Documentation (Swagger UI)
+With the API server running, interactive docs and spec endpoints are available at:
+
+- Swagger UI: `http://localhost:5000/api/docs`
+- OpenAPI JSON: `http://localhost:5000/api/openapi.json`
+- OpenAPI YAML: `http://localhost:5000/api/openapi.yaml`
+
+The canonical spec file remains `lib/api-spec/openapi.yaml`.
+
+### 7. OpenAPI Tooling
+Regenerate typed clients/schemas from the canonical spec:
+```bash
+pnpm --filter @workspace/api-spec run codegen
+```
+
+Validate the OpenAPI document:
+```bash
+pnpm --filter @workspace/api-spec run validate
+```
+
+Build a static Swagger docs page (consumes `/api/openapi.json` by default):
+```bash
+pnpm --filter @workspace/api-spec run build:docs:static
+```
 
 ## 🔨 Build & Production
 To build the entire project for production:

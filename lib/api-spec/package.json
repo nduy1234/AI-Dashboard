@@ -3,9 +3,13 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "codegen": "orval --config ./orval.config.ts"
+    "codegen": "orval --config ./orval.config.ts",
+    "validate": "node ./validate.mjs",
+    "build:docs:static": "node ./build-static-docs.mjs"
   },
   "devDependencies": {
+    "@apidevtools/swagger-parser": "^12.1.0",
+    "openapi-types": "^12.1.3",
     "orval": "^8.5.2"
   }
 }
