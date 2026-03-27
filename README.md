@@ -86,9 +86,11 @@ pnpm -r --parallel run dev
 ### 6. API Documentation (Swagger UI)
 With the API server running, interactive docs and spec endpoints are available at:
 
-- Swagger UI: `http://localhost:5000/api/docs`
-- OpenAPI JSON: `http://localhost:5000/api/openapi.json`
-- OpenAPI YAML: `http://localhost:5000/api/openapi.yaml`
+- Swagger UI: `http://localhost:5000/api/v1/docs`
+- OpenAPI JSON: `http://localhost:5000/api/v1/openapi.json`
+- OpenAPI YAML: `http://localhost:5000/api/v1/openapi.yaml`
+
+Backward-compatible legacy aliases are also available at `/api/*` while clients migrate.
 
 The canonical spec file remains `lib/api-spec/openapi.yaml`.
 
@@ -103,7 +105,7 @@ Validate the OpenAPI document:
 pnpm --filter @workspace/api-spec run validate
 ```
 
-Build a static Swagger docs page (consumes `/api/openapi.json` by default):
+Build a static Swagger docs page (consumes `/api/v1/openapi.json` by default):
 ```bash
 pnpm --filter @workspace/api-spec run build:docs:static
 ```
