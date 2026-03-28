@@ -7,11 +7,12 @@ import {
   UpdateIntegrationBody,
   UpdateIntegrationResponse,
 } from "@workspace/api-zod";
+import { getOwnerContext, ownerScope } from "../security/ownerContext";
 
 const router: IRouter = Router();
 
 function ownerFilter(req: Express.Request) {
-  return req.orgId ? eq(integrationsTable.orgId, req.orgId) : eq(integrationsTable.userId, req.user!.id);
+  return ownerScope(integrationsTable, getOwnerContext(req));
 }
 
 router.get("/integrations", async (req, res): Promise<void> => {

@@ -13,6 +13,7 @@ import {
   ImportLeadsResponse,
   VerifyLeadEmailsResponse,
 } from "@workspace/api-zod";
+import { getOwnerContext, ownerScope } from "../security/ownerContext";
 
 const router: IRouter = Router();
 
@@ -32,11 +33,7 @@ router.get("/leads", async (req, res): Promise<void> => {
     );
   }
 
-  if (req.orgId) {
-    conditions.push(eq(leadsTable.orgId, req.orgId));
-  } else {
-    conditions.push(eq(leadsTable.userId, req.user!.id));
-  }
+  conditions.push(ownerScope(leadsTable, getOwnerContext(req)));
 
   const leads = await db.select().from(leadsTable)
     .where(conditions.length > 0 ? and(...conditions) : undefined)
@@ -58,7 +55,7 @@ router.post("/leads", async (req, res): Promise<void> => {
 router.get("/leads/:id", async (req, res): Promise<void> => {
   const params = GetLeadParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const ownerFilter = ownerScope(leadsTable, getOwnerContext(req));
   const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, params.data.id), ownerFilter));
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json(GetLeadResponse.parse(lead));
@@ -69,7 +66,7 @@ router.patch("/leads/:id", async (req, res): Promise<void> => {
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
   const parsed = UpdateLeadBody.safeParse(req.body);
   if (!parsed.success) { res.status(400).json({ error: parsed.error.message }); return; }
-  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const ownerFilter = ownerScope(leadsTable, getOwnerContext(req));
   const [lead] = await db.update(leadsTable).set(parsed.data).where(and(eq(leadsTable.id, params.data.id), ownerFilter)).returning();
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.json(UpdateLeadResponse.parse(lead));
@@ -78,7 +75,7 @@ router.patch("/leads/:id", async (req, res): Promise<void> => {
 router.delete("/leads/:id", async (req, res): Promise<void> => {
   const params = DeleteLeadParams.safeParse(req.params);
   if (!params.success) { res.status(400).json({ error: params.error.message }); return; }
-  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const ownerFilter = ownerScope(leadsTable, getOwnerContext(req));
   const [lead] = await db.delete(leadsTable).where(and(eq(leadsTable.id, params.data.id), ownerFilter)).returning();
   if (!lead) { res.status(404).json({ error: "Lead not found" }); return; }
   res.sendStatus(204);
@@ -99,7 +96,7 @@ router.post("/leads/verify", async (req, res): Promise<void> => {
   const { leadIds } = req.body;
   if (!Array.isArray(leadIds)) { res.status(400).json({ error: "leadIds must be an array" }); return; }
 
-  const ownerFilter = req.orgId ? eq(leadsTable.orgId, req.orgId) : eq(leadsTable.userId, req.user!.id);
+  const ownerFilter = ownerScope(leadsTable, getOwnerContext(req));
   let verified = 0;
   for (const id of leadIds) {
     const isValid = Math.random() > 0.15;

@@ -6,7 +6,6 @@ import {
   ExchangeMobileAuthorizationCodeResponse,
   LogoutMobileSessionResponse,
 } from "@workspace/api-zod";
-import { db, usersTable } from "@workspace/db";
 import {
   clearSession,
   getOidcConfig,
@@ -18,7 +17,8 @@ import {
   ISSUER_URL,
   type SessionData,
 } from "../lib/auth";
-import { seedDemoDataForUser, ensureUserOrg } from "../seed";
+import { upsertUserFromClaims } from "../repositories/userRepository";
+import { onboardUserAfterLogin } from "../services/onboardingService";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 
@@ -60,37 +60,6 @@ function getSafeReturnTo(value: unknown): string {
     return "/";
   }
   return value;
-}
-
-import crypto from "crypto";
-
-function generateDeterministicUuid(seed: string): string {
-  const hash = crypto.createHash("md5").update(seed).digest("hex");
-  // Format as a valid UUID: 8-4-4-4-12
-  return `${hash.slice(0, 8)}-${hash.slice(8, 12)}-4${hash.slice(13, 16)}-a${hash.slice(17, 20)}-${hash.slice(20, 32)}`;
-}
-
-async function upsertUser(claims: Record<string, unknown>) {
-  const userData = {
-    id: generateDeterministicUuid(claims.sub as string),
-    email: (claims.email as string) || null,
-    firstName: (claims.given_name as string) || null,
-    lastName: (claims.family_name as string) || null,
-    profileImageUrl: (claims.picture as string) || null,
-  };
-
-  const [user] = await db
-    .insert(usersTable)
-    .values(userData)
-    .onConflictDoUpdate({
-      target: usersTable.id,
-      set: {
-        ...userData,
-        updatedAt: new Date(),
-      },
-    })
-    .returning();
-  return user;
 }
 
 router.get("/auth/user", (req: Request, res: Response) => {
@@ -175,16 +144,11 @@ router.get("/callback", async (req: Request, res: Response) => {
     return;
   }
 
-  const dbUser = await upsertUser(
+  const dbUser = await upsertUserFromClaims(
     claims as unknown as Record<string, unknown>,
   );
 
-  try {
-    await ensureUserOrg(dbUser.id, dbUser.firstName ?? undefined);
-    await seedDemoDataForUser(dbUser.id);
-  } catch (err) {
-    console.error("Seed error:", err);
-  }
+  await onboardUserAfterLogin(dbUser.id, dbUser.firstName);
 
   const now = Math.floor(Date.now() / 1000);
   const sessionData: SessionData = {
@@ -251,7 +215,7 @@ router.post(
         return;
       }
 
-      const dbUser = await upsertUser(
+      const dbUser = await upsertUserFromClaims(
         claims as unknown as Record<string, unknown>,
       );
 

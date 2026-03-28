@@ -15,11 +15,12 @@ import {
   PauseCampaignParams,
   PauseCampaignResponse,
 } from "@workspace/api-zod";
+import { getOwnerContext, ownerScope } from "../security/ownerContext";
 
 const router: IRouter = Router();
 
 function campaignOwnerFilter(req: Express.Request) {
-  return req.orgId ? eq(campaignsTable.orgId, req.orgId) : eq(campaignsTable.userId, req.user!.id);
+  return ownerScope(campaignsTable, getOwnerContext(req));
 }
 
 router.get("/campaigns", async (req, res): Promise<void> => {

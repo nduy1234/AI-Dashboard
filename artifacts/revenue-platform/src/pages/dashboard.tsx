@@ -1,7 +1,7 @@
 import { motion } from "framer-motion";
 import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick } from "lucide-react";
-import { PageHeader } from "@/components/ui/page-header";
-import { StatCard } from "@/components/ui/stat-card";
+import { PageHeader } from "@/components/molecules/page-header";
+import { StatCard } from "@/components/molecules/stat-card";
 import { useDashboardStats, useDashboardCharts } from "@/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

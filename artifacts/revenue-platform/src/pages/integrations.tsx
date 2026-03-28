@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/molecules/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { useIntegrations, useUpdateIntegration } from "@/hooks/use-integrations";

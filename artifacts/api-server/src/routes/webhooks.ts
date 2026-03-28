@@ -1,14 +1,12 @@
 import { Router, type IRouter } from "express";
-import { and, eq } from "drizzle-orm";
-import { db, campaignsTable, sendingEventsTable, analyticsEventsTable } from "@workspace/db";
 import { verifyWebhookSignature } from "../lib/outboundIntegrations";
+import {
+  processCrmWebhook,
+  processSendingWebhook,
+  providerSecret,
+} from "../services/webhookService";
 
 const router: IRouter = Router();
-
-function providerSecret(provider: string): string {
-  const envKey = `WEBHOOK_SECRET_${provider.toUpperCase()}`;
-  return process.env[envKey] ?? process.env.WEBHOOK_SECRET_DEFAULT ?? "dev-webhook-secret";
-}
 
 router.post("/webhooks/sending/:provider", async (req, res): Promise<void> => {
   const provider = req.params.provider;
@@ -26,39 +24,18 @@ router.post("/webhooks/sending/:provider", async (req, res): Promise<void> => {
   const campaignId = typeof body.campaignId === "number" ? body.campaignId : null;
   const leadId = typeof body.leadId === "number" ? body.leadId : null;
 
-  const [existing] = await db
-    .select()
-    .from(sendingEventsTable)
-    .where(and(eq(sendingEventsTable.provider, provider), eq(sendingEventsTable.eventId, eventId)));
-  if (existing) {
-    res.json({ ok: true, deduplicated: true });
-    return;
-  }
-
-  await db.insert(sendingEventsTable).values({
+  const result = await processSendingWebhook({
+    provider,
+    eventId,
+    eventType,
     campaignId,
     leadId,
-    provider,
-    eventType,
-    eventId,
-    payload: body,
+    body,
   });
-
-  if (campaignId && ["open", "reply", "meeting_booked", "bounce"].includes(eventType)) {
-    const [campaign] = await db.select().from(campaignsTable).where(eq(campaignsTable.id, campaignId));
-    if (campaign) {
-      await db
-        .update(campaignsTable)
-        .set({
-          openCount: eventType === "open" ? campaign.openCount + 1 : campaign.openCount,
-          replyCount: eventType === "reply" ? campaign.replyCount + 1 : campaign.replyCount,
-          meetingsBooked: eventType === "meeting_booked" ? campaign.meetingsBooked + 1 : campaign.meetingsBooked,
-          sentCount: eventType === "sent" ? campaign.sentCount + 1 : campaign.sentCount,
-        })
-        .where(eq(campaignsTable.id, campaignId));
-    }
+  if (result.deduplicated) {
+    res.json(result);
+    return;
   }
-
   res.status(202).json({ ok: true });
 });
 
@@ -73,15 +50,8 @@ router.post("/webhooks/crm/:provider", async (req, res): Promise<void> => {
     return;
   }
 
-  await db.insert(analyticsEventsTable).values({
-    userId: "system",
-    orgId: null,
-    eventType: "crm_webhook_received",
-    entityType: "crm_event",
-    metadata: { provider, body },
-  });
-
-  res.status(202).json({ ok: true });
+  const result = await processCrmWebhook(provider, body);
+  res.status(202).json(result);
 });
 
 export default router;
