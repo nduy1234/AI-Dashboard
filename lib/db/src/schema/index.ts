@@ -10,3 +10,4 @@ export * from "./promptTemplates";
 export * from "./analyticsEvents";
 export * from "./teamMembers";
 export * from "./organizations";
+export * from "./outbound";

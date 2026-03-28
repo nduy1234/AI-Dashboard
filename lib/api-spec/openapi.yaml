@@ -33,6 +33,10 @@ tags:
     description: Knowledge base management
   - name: agentLogs
     description: Agent activity logs
+  - name: outbound
+    description: Phase 1 outbound orchestration jobs and reporting
+  - name: webhooks
+    description: External provider webhook ingestion
 paths:
   /healthz:
     get:
@@ -876,6 +880,304 @@ paths:
         "204":
           description: Template deleted
 
+  /outbound/jobs/import:
+    post:
+      operationId: createOutboundImportJob
+      tags: [outbound]
+      summary: Create outbound import job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundImportJobBody"
+      responses:
+        "201":
+          description: Import job completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/enrich:
+    post:
+      operationId: createOutboundEnrichJob
+      tags: [outbound]
+      summary: Create outbound enrichment job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLeadIdsJobBody"
+      responses:
+        "200":
+          description: Enrichment job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/verify:
+    post:
+      operationId: createOutboundVerifyJob
+      tags: [outbound]
+      summary: Create outbound verification job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLeadIdsJobBody"
+      responses:
+        "200":
+          description: Verification job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/personalize:
+    post:
+      operationId: createOutboundPersonalizeJob
+      tags: [outbound]
+      summary: Create outbound personalization job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundPersonalizeJobBody"
+      responses:
+        "200":
+          description: Personalization job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/launch:
+    post:
+      operationId: createOutboundLaunchJob
+      tags: [outbound]
+      summary: Launch outbound campaign through provider
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLaunchJobBody"
+      responses:
+        "200":
+          description: Launch job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/{id}/retry:
+    post:
+      operationId: retryOutboundJob
+      tags: [outbound]
+      summary: Retry an existing outbound job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/{id}:
+    get:
+      operationId: getOutboundJob
+      tags: [outbound]
+      summary: Get outbound job status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Outbound job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJob"
+
+  /outbound/leads/pipeline:
+    get:
+      operationId: getOutboundLeadPipeline
+      tags: [outbound]
+      summary: Get outbound lead pipeline counts
+      responses:
+        "200":
+          description: Pipeline metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPipelineStats"
+
+  /outbound/config:
+    get:
+      operationId: getOutboundPhaseOneConfig
+      tags: [outbound]
+      summary: Get frozen Phase 1 outbound provider and KPI config
+      responses:
+        "200":
+          description: Outbound phase configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPhaseOneConfig"
+
+  /outbound/campaigns/{id}/performance:
+    get:
+      operationId: getOutboundCampaignPerformance
+      tags: [outbound]
+      summary: Get outbound campaign performance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundCampaignPerformance"
+
+  /outbound/pilot/run:
+    post:
+      operationId: runOutboundPilot
+      tags: [outbound]
+      summary: Run pilot KPI validation for one campaign
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundPilotRunBody"
+      responses:
+        "200":
+          description: Pilot validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPilotRunResult"
+
+  /webhooks/sending/{provider}:
+    post:
+      operationId: ingestSendingWebhook
+      tags: [webhooks]
+      summary: Ingest outbound provider webhook events
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEventBody"
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookAck"
+
+  /webhooks/crm/{provider}:
+    post:
+      operationId: ingestCrmWebhook
+      tags: [webhooks]
+      summary: Ingest CRM event webhook
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEventBody"
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookAck"
+
 components:
   parameters:
     AuthorizationSessionHeader:
@@ -1659,3 +1961,268 @@ components:
           type: string
         template:
           type: string
+
+    OutboundLeadInput:
+      type: object
+      required: [firstName, lastName, email, company, title]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        title:
+          type: string
+        industry:
+          type: string
+        companySize:
+          type: string
+        linkedinUrl:
+          type: string
+        notes:
+          type: string
+
+    OutboundImportJobBody:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+        importType:
+          type: string
+          enum: [api, export, manual]
+        leads:
+          type: array
+          items:
+            $ref: "#/components/schemas/OutboundLeadInput"
+        filters:
+          type: object
+          additionalProperties: true
+        campaignId:
+          type: integer
+
+    OutboundLeadIdsJobBody:
+      type: object
+      required: [leadIds]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+        provider:
+          type: string
+        campaignId:
+          type: integer
+
+    OutboundPersonalizeJobBody:
+      type: object
+      required: [leadIds, campaignId]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+        campaignId:
+          type: integer
+        provider:
+          type: string
+        promptVersion:
+          type: string
+
+    OutboundLaunchJobBody:
+      type: object
+      required: [campaignId, leadIds]
+      properties:
+        campaignId:
+          type: integer
+        leadIds:
+          type: array
+          items:
+            type: integer
+        provider:
+          type: string
+          enum: [instantly, smartlead, resend]
+        dailyCap:
+          type: integer
+
+    OutboundJob:
+      type: object
+      required: [id, stage, status, createdAt]
+      properties:
+        id:
+          type: integer
+        stage:
+          type: string
+        status:
+          type: string
+        campaignId:
+          type: [integer, 'null']
+        provider:
+          type: [string, 'null']
+        input:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: [string, 'null']
+        idempotencyKey:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OutboundJobResult:
+      type: object
+      required: [jobId]
+      properties:
+        jobId:
+          type: integer
+        imported:
+          type: integer
+        duplicates:
+          type: integer
+        total:
+          type: integer
+        enriched:
+          type: integer
+        verified:
+          type: integer
+        invalid:
+          type: integer
+        generated:
+          type: integer
+        sent:
+          type: integer
+        provider:
+          type: string
+        retried:
+          type: boolean
+        attempt:
+          type: integer
+
+    OutboundPipelineStats:
+      type: object
+      required: [sourced, enriched, verified, invalid, review, total]
+      properties:
+        sourced:
+          type: integer
+        enriched:
+          type: integer
+        verified:
+          type: integer
+        invalid:
+          type: integer
+        review:
+          type: integer
+        total:
+          type: integer
+
+    OutboundCampaignPerformance:
+      type: object
+      required:
+        [campaignId, sent, opened, replied, positiveReplies, bounces, meetingsBooked, deliveryRate, openRate, replyRate, positiveReplyRate, meetingRate]
+      properties:
+        campaignId:
+          type: integer
+        sent:
+          type: integer
+        opened:
+          type: integer
+        replied:
+          type: integer
+        positiveReplies:
+          type: integer
+        bounces:
+          type: integer
+        meetingsBooked:
+          type: integer
+        deliveryRate:
+          type: number
+        openRate:
+          type: number
+        replyRate:
+          type: number
+        positiveReplyRate:
+          type: number
+        meetingRate:
+          type: number
+
+    OutboundPhaseOneConfig:
+      type: object
+      required: [scope, providers, kpiTargets]
+      properties:
+        scope:
+          type: string
+        providers:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        kpiTargets:
+          type: object
+          properties:
+            minimumDeliverabilityRatePct:
+              type: number
+            minimumOpenRatePct:
+              type: number
+            minimumReplyRatePct:
+              type: number
+            minimumPositiveReplyRatePct:
+              type: number
+
+    OutboundPilotRunBody:
+      type: object
+      required: [campaignId]
+      properties:
+        campaignId:
+          type: integer
+
+    OutboundPilotRunResult:
+      type: object
+      required: [campaignId, metrics, targets, checks, passed]
+      properties:
+        campaignId:
+          type: integer
+        metrics:
+          type: object
+          additionalProperties: true
+        targets:
+          type: object
+          additionalProperties: true
+        checks:
+          type: object
+          additionalProperties:
+            type: boolean
+        passed:
+          type: boolean
+
+    WebhookEventBody:
+      type: object
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+        campaignId:
+          type: integer
+        leadId:
+          type: integer
+      additionalProperties: true
+
+    WebhookAck:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        deduplicated:
+          type: boolean

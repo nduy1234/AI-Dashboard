@@ -813,3 +813,296 @@ export const UpdatePromptTemplateResponse = zod.object({
 export const DeletePromptTemplateParams = zod.object({
   id: zod.coerce.number(),
 });
+
+/**
+ * @summary Create outbound import job
+ */
+export const CreateOutboundImportJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundImportJobBody = zod.object({
+  source: zod.string(),
+  importType: zod.enum(["api", "export", "manual"]).optional(),
+  leads: zod
+    .array(
+      zod.object({
+        firstName: zod.string(),
+        lastName: zod.string(),
+        email: zod.string(),
+        company: zod.string(),
+        title: zod.string(),
+        industry: zod.string().optional(),
+        companySize: zod.string().optional(),
+        linkedinUrl: zod.string().optional(),
+        notes: zod.string().optional(),
+      }),
+    )
+    .optional(),
+  filters: zod.record(zod.string(), zod.unknown()).optional(),
+  campaignId: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound enrichment job
+ */
+export const CreateOutboundEnrichJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundEnrichJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  provider: zod.string().optional(),
+  campaignId: zod.number().optional(),
+});
+
+export const CreateOutboundEnrichJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound verification job
+ */
+export const CreateOutboundVerifyJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundVerifyJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  provider: zod.string().optional(),
+  campaignId: zod.number().optional(),
+});
+
+export const CreateOutboundVerifyJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound personalization job
+ */
+export const CreateOutboundPersonalizeJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundPersonalizeJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  campaignId: zod.number(),
+  provider: zod.string().optional(),
+  promptVersion: zod.string().optional(),
+});
+
+export const CreateOutboundPersonalizeJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Launch outbound campaign through provider
+ */
+export const CreateOutboundLaunchJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundLaunchJobBody = zod.object({
+  campaignId: zod.number(),
+  leadIds: zod.array(zod.number()),
+  provider: zod.enum(["instantly", "smartlead", "resend"]).optional(),
+  dailyCap: zod.number().optional(),
+});
+
+export const CreateOutboundLaunchJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Retry an existing outbound job
+ */
+export const RetryOutboundJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RetryOutboundJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const RetryOutboundJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Get outbound job status
+ */
+export const GetOutboundJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOutboundJobResponse = zod.object({
+  id: zod.number(),
+  stage: zod.string(),
+  status: zod.string(),
+  campaignId: zod.number().nullish(),
+  provider: zod.string().nullish(),
+  input: zod.record(zod.string(), zod.unknown()).optional(),
+  result: zod.record(zod.string(), zod.unknown()).optional(),
+  error: zod.string().nullish(),
+  idempotencyKey: zod.string().nullish(),
+  createdAt: zod.date(),
+  updatedAt: zod.date().optional(),
+});
+
+/**
+ * @summary Get outbound lead pipeline counts
+ */
+export const GetOutboundLeadPipelineResponse = zod.object({
+  sourced: zod.number(),
+  enriched: zod.number(),
+  verified: zod.number(),
+  invalid: zod.number(),
+  review: zod.number(),
+  total: zod.number(),
+});
+
+/**
+ * @summary Get frozen Phase 1 outbound provider and KPI config
+ */
+export const GetOutboundPhaseOneConfigResponse = zod.object({
+  scope: zod.string(),
+  providers: zod.record(zod.string(), zod.array(zod.string())),
+  kpiTargets: zod.object({
+    minimumDeliverabilityRatePct: zod.number().optional(),
+    minimumOpenRatePct: zod.number().optional(),
+    minimumReplyRatePct: zod.number().optional(),
+    minimumPositiveReplyRatePct: zod.number().optional(),
+  }),
+});
+
+/**
+ * @summary Get outbound campaign performance
+ */
+export const GetOutboundCampaignPerformanceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOutboundCampaignPerformanceResponse = zod.object({
+  campaignId: zod.number(),
+  sent: zod.number(),
+  opened: zod.number(),
+  replied: zod.number(),
+  positiveReplies: zod.number(),
+  bounces: zod.number(),
+  meetingsBooked: zod.number(),
+  deliveryRate: zod.number(),
+  openRate: zod.number(),
+  replyRate: zod.number(),
+  positiveReplyRate: zod.number(),
+  meetingRate: zod.number(),
+});
+
+/**
+ * @summary Run pilot KPI validation for one campaign
+ */
+export const RunOutboundPilotHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const RunOutboundPilotBody = zod.object({
+  campaignId: zod.number(),
+});
+
+export const RunOutboundPilotResponse = zod.object({
+  campaignId: zod.number(),
+  metrics: zod.record(zod.string(), zod.unknown()),
+  targets: zod.record(zod.string(), zod.unknown()),
+  checks: zod.record(zod.string(), zod.boolean()),
+  passed: zod.boolean(),
+});
+
+/**
+ * @summary Ingest outbound provider webhook events
+ */
+export const IngestSendingWebhookParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const IngestSendingWebhookHeader = zod.object({
+  "x-webhook-signature": zod.string(),
+});
+
+export const IngestSendingWebhookBody = zod.object({
+  eventId: zod.string().optional(),
+  eventType: zod.string().optional(),
+  campaignId: zod.number().optional(),
+  leadId: zod.number().optional(),
+});
+
+/**
+ * @summary Ingest CRM event webhook
+ */
+export const IngestCrmWebhookParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const IngestCrmWebhookHeader = zod.object({
+  "x-webhook-signature": zod.string(),
+});
+
+export const IngestCrmWebhookBody = zod.object({
+  eventId: zod.string().optional(),
+  eventType: zod.string().optional(),
+  campaignId: zod.number().optional(),
+  leadId: zod.number().optional(),
+});

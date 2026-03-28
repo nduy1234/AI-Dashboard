@@ -1,0 +1,205 @@
+{
+  "name": "Outbound Phase 1.1 - End to End",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/jobs/import",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-import-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"source\":\"apollo\",\"importType\":\"export\",\"campaignId\":{{$json.campaignId}},\"leads\":{{$json.leads}}}"
+      },
+      "id": "import-job",
+      "name": "Create Import Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        500,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/jobs/enrich",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-enrich-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"leadIds\":{{$json.leadIds}},\"provider\":\"clay\",\"campaignId\":{{$json.campaignId}}}"
+      },
+      "id": "enrich-job",
+      "name": "Create Enrich Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/jobs/verify",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-verify-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"leadIds\":{{$json.leadIds}},\"provider\":\"millionverifier\",\"campaignId\":{{$json.campaignId}}}"
+      },
+      "id": "verify-job",
+      "name": "Create Verify Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1060,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/jobs/personalize",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-personalize-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"leadIds\":{{$json.leadIds}},\"campaignId\":{{$json.campaignId}},\"provider\":\"openai\",\"promptVersion\":\"phase1-1\"}"
+      },
+      "id": "personalize-job",
+      "name": "Create Personalize Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1340,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/jobs/launch",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-launch-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"campaignId\":{{$json.campaignId}},\"leadIds\":{{$json.leadIds}},\"provider\":\"resend\",\"dailyCap\":50}"
+      },
+      "id": "launch-job",
+      "name": "Create Launch Job",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1620,
+        260
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{$json.baseUrl}}/api/v1/outbound/pilot/run",
+        "method": "POST",
+        "sendHeaders": true,
+        "headerParametersJson": "={\"Content-Type\":\"application/json\",\"Authorization\":\"Bearer {{$json.token}}\",\"Idempotency-Key\":\"outbound-pilot-{{$now}}\"}",
+        "sendBody": true,
+        "bodyContentType": "json",
+        "jsonBody": "={\"campaignId\":{{$json.campaignId}}}"
+      },
+      "id": "pilot-run",
+      "name": "Validate Pilot KPIs",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1900,
+        260
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Create Import Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Import Job": {
+      "main": [
+        [
+          {
+            "node": "Create Enrich Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Enrich Job": {
+      "main": [
+        [
+          {
+            "node": "Create Verify Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Verify Job": {
+      "main": [
+        [
+          {
+            "node": "Create Personalize Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Personalize Job": {
+      "main": [
+        [
+          {
+            "node": "Create Launch Job",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create Launch Job": {
+      "main": [
+        [
+          {
+            "node": "Validate Pilot KPIs",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {},
+  "staticData": {},
+  "pinData": {},
+  "meta": {
+    "templateCredsSetupCompleted": false,
+    "description": "Set input JSON with baseUrl, token, campaignId, leadIds, and leads before running."
+  }
+}

@@ -427,6 +427,173 @@ export interface UpdatePromptTemplateBody {
   template?: string;
 }
 
+export interface OutboundLeadInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string;
+  title: string;
+  industry?: string;
+  companySize?: string;
+  linkedinUrl?: string;
+  notes?: string;
+}
+
+export type OutboundImportJobBodyImportType =
+  (typeof OutboundImportJobBodyImportType)[keyof typeof OutboundImportJobBodyImportType];
+
+export const OutboundImportJobBodyImportType = {
+  api: "api",
+  export: "export",
+  manual: "manual",
+} as const;
+
+export type OutboundImportJobBodyFilters = { [key: string]: unknown };
+
+export interface OutboundImportJobBody {
+  source: string;
+  importType?: OutboundImportJobBodyImportType;
+  leads?: OutboundLeadInput[];
+  filters?: OutboundImportJobBodyFilters;
+  campaignId?: number;
+}
+
+export interface OutboundLeadIdsJobBody {
+  leadIds: number[];
+  provider?: string;
+  campaignId?: number;
+}
+
+export interface OutboundPersonalizeJobBody {
+  leadIds: number[];
+  campaignId: number;
+  provider?: string;
+  promptVersion?: string;
+}
+
+export type OutboundLaunchJobBodyProvider =
+  (typeof OutboundLaunchJobBodyProvider)[keyof typeof OutboundLaunchJobBodyProvider];
+
+export const OutboundLaunchJobBodyProvider = {
+  instantly: "instantly",
+  smartlead: "smartlead",
+  resend: "resend",
+} as const;
+
+export interface OutboundLaunchJobBody {
+  campaignId: number;
+  leadIds: number[];
+  provider?: OutboundLaunchJobBodyProvider;
+  dailyCap?: number;
+}
+
+export type OutboundJobInput = { [key: string]: unknown };
+
+export type OutboundJobResultProperty = { [key: string]: unknown };
+
+export interface OutboundJob {
+  id: number;
+  stage: string;
+  status: string;
+  /** @nullable */
+  campaignId?: number | null;
+  /** @nullable */
+  provider?: string | null;
+  input?: OutboundJobInput;
+  result?: OutboundJobResultProperty;
+  /** @nullable */
+  error?: string | null;
+  /** @nullable */
+  idempotencyKey?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OutboundJobResult {
+  jobId: number;
+  imported?: number;
+  duplicates?: number;
+  total?: number;
+  enriched?: number;
+  verified?: number;
+  invalid?: number;
+  generated?: number;
+  sent?: number;
+  provider?: string;
+  retried?: boolean;
+  attempt?: number;
+}
+
+export interface OutboundPipelineStats {
+  sourced: number;
+  enriched: number;
+  verified: number;
+  invalid: number;
+  review: number;
+  total: number;
+}
+
+export interface OutboundCampaignPerformance {
+  campaignId: number;
+  sent: number;
+  opened: number;
+  replied: number;
+  positiveReplies: number;
+  bounces: number;
+  meetingsBooked: number;
+  deliveryRate: number;
+  openRate: number;
+  replyRate: number;
+  positiveReplyRate: number;
+  meetingRate: number;
+}
+
+export type OutboundPhaseOneConfigProviders = { [key: string]: string[] };
+
+export type OutboundPhaseOneConfigKpiTargets = {
+  minimumDeliverabilityRatePct?: number;
+  minimumOpenRatePct?: number;
+  minimumReplyRatePct?: number;
+  minimumPositiveReplyRatePct?: number;
+};
+
+export interface OutboundPhaseOneConfig {
+  scope: string;
+  providers: OutboundPhaseOneConfigProviders;
+  kpiTargets: OutboundPhaseOneConfigKpiTargets;
+}
+
+export interface OutboundPilotRunBody {
+  campaignId: number;
+}
+
+export type OutboundPilotRunResultMetrics = { [key: string]: unknown };
+
+export type OutboundPilotRunResultTargets = { [key: string]: unknown };
+
+export type OutboundPilotRunResultChecks = { [key: string]: boolean };
+
+export interface OutboundPilotRunResult {
+  campaignId: number;
+  metrics: OutboundPilotRunResultMetrics;
+  targets: OutboundPilotRunResultTargets;
+  checks: OutboundPilotRunResultChecks;
+  passed: boolean;
+}
+
+export interface WebhookEventBody {
+  eventId?: string;
+  eventType?: string;
+  campaignId?: number;
+  leadId?: number;
+  [key: string]: unknown;
+}
+
+export interface WebhookAck {
+  ok: boolean;
+  deduplicated?: boolean;
+}
+
 export type AuthorizationSessionHeaderParameter = string;
 
 export type BeginBrowserLoginParams = {
