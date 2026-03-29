@@ -1,6 +1,6 @@
 import type { OwnerContext } from "../security/ownerContext";
-import { outboundMcpTools } from "../lib/outboundIntegrations";
-import { outboundPhaseOneConfig } from "../lib/outboundConfig";
+import { launchInstantlyCampaign, outboundMcpTools } from "../lib/outboundIntegrations";
+import { isOutboundProviderEnabled, outboundPhaseOneConfig } from "../lib/outboundConfig";
 import {
   activateCampaign,
   completeOutboundJob,
@@ -32,6 +32,8 @@ import {
   updateLeadVerification,
   findLeadByEmailOwned,
   db,
+  getJobById,
+  setOutboundJobStatus,
 } from "../repositories/outboundRepository";
 
 export async function createOrGetJob(
@@ -234,7 +236,48 @@ export async function runLaunchJob(
     let sent = 0;
 
     await db.transaction(async (tx: any) => {
-      for (const lead of leads.slice(0, payload.dailyCap)) {
+      const launchLeads = leads.slice(0, payload.dailyCap);
+
+      if (payload.provider === "instantly") {
+        const firstMessage = launchLeads.length > 0
+          ? await getLatestOutboundMessage(payload.campaignId, launchLeads[0]!.id)
+          : null;
+        const fallbackSubject = firstMessage?.subject ?? campaign.subject ?? `Quick intro for ${campaign.name}`;
+        const fallbackBody = firstMessage?.body ?? "Hi, sharing a quick idea for your growth goals.";
+        const instantlyLaunch = await launchInstantlyCampaign({
+          campaignName: campaign.name,
+          subject: fallbackSubject,
+          body: fallbackBody,
+          leads: launchLeads.map((lead) => ({
+            email: lead.email,
+            firstName: lead.firstName,
+            lastName: lead.lastName,
+            company: lead.company,
+          })),
+          fromDomain: bestDomain?.domain ?? null,
+        });
+
+        for (const lead of launchLeads) {
+          await markLeadSent(payload.campaignId, lead.id, tx);
+          await createSendingEvent({
+            campaignId: payload.campaignId,
+            leadId: lead.id,
+            provider: payload.provider,
+            eventType: "sent",
+            eventId: `${instantlyLaunch.externalMessageId}:${lead.id}`,
+            payload: { source: "launch_job", mode: "campaign" },
+          }, tx);
+          await markOutboundMessageSent(
+            payload.campaignId,
+            lead.id,
+            payload.provider,
+            instantlyLaunch.externalMessageId,
+            tx,
+          );
+          sent += 1;
+        }
+      } else {
+        for (const lead of launchLeads) {
         const message = await getLatestOutboundMessage(payload.campaignId, lead.id);
         const finalMessage = message ?? {
           subject: campaign.subject ?? `Quick intro for ${lead.company}`,
@@ -259,6 +302,7 @@ export async function runLaunchJob(
         }, tx);
         await markOutboundMessageSent(payload.campaignId, lead.id, payload.provider, sendResult.externalMessageId, tx);
         sent += 1;
+      }
       }
 
       await activateCampaign(campaign.id, sent, tx);
@@ -287,8 +331,9 @@ export async function retryJob(owner: OwnerContext, jobId: number) {
   if (!job) return null;
   const nextAttempt = (await getJobAttemptCount(jobId)) + 1;
   await createJobAttempt(jobId, nextAttempt, owner.userId);
+  await setOutboundJobStatus(jobId, "queued");
   await setJobRetryResult(jobId, nextAttempt);
-  return { jobId, retried: true, attempt: nextAttempt };
+  return { jobId, retried: true, attempt: nextAttempt, status: "queued" };
 }
 
 export async function getOwnedJob(owner: OwnerContext, jobId: number) {
@@ -391,4 +436,75 @@ export async function runPilot(owner: OwnerContext, campaignId: number) {
     checks,
     passed: checks.openRate && checks.replyRate && checks.positiveReplyRate,
   };
+}
+
+export async function processOutboundJobById(jobId: number): Promise<void> {
+  const job = await getJobById(jobId);
+  if (!job) return;
+  if (!job.userId) {
+    await setOutboundJobStatus(jobId, "failed");
+    await failOutboundJob(jobId, "Job has no user context");
+    return;
+  }
+
+  const owner: OwnerContext = {
+    userId: job.userId,
+    orgId: job.orgId ?? null,
+  };
+
+  const input = (job.input ?? {}) as Record<string, unknown>;
+  await setOutboundJobStatus(jobId, "processing");
+
+  switch (job.stage) {
+    case "import":
+      await runImportJob(owner, jobId, {
+        source: String(input.source ?? "apollo"),
+        importType: String(input.importType ?? "manual"),
+        leads: Array.isArray(input.leads) ? (input.leads as Array<Record<string, unknown>>) : undefined,
+        filters: typeof input.filters === "object" && input.filters ? (input.filters as Record<string, unknown>) : undefined,
+      });
+      return;
+    case "enrich":
+      {
+        const requestedProvider = String(input.provider ?? "clay");
+        const provider = isOutboundProviderEnabled(requestedProvider) ? requestedProvider : "manual_fallback";
+      await runEnrichJob(owner, jobId, {
+        leadIds: Array.isArray(input.leadIds) ? input.leadIds.map((value) => Number(value)).filter(Number.isFinite) : [],
+        provider,
+      });
+      return;
+      }
+    case "verify":
+      await runVerifyJob(owner, jobId, {
+        leadIds: Array.isArray(input.leadIds) ? input.leadIds.map((value) => Number(value)).filter(Number.isFinite) : [],
+        provider: String(input.provider ?? "millionverifier"),
+      });
+      return;
+    case "personalize":
+      await runPersonalizeJob(owner, jobId, {
+        leadIds: Array.isArray(input.leadIds) ? input.leadIds.map((value) => Number(value)).filter(Number.isFinite) : [],
+        campaignId: Number(input.campaignId ?? 0),
+        provider: String(input.provider ?? "openai"),
+        promptVersion: String(input.promptVersion ?? "phase1-v1"),
+      });
+      return;
+    case "launch":
+      {
+        const requestedProvider = String(input.provider ?? "resend");
+        if (!isOutboundProviderEnabled(requestedProvider)) {
+          await failOutboundJob(jobId, `Provider '${requestedProvider}' is disabled`);
+          return;
+        }
+      await runLaunchJob(owner, jobId, {
+        campaignId: Number(input.campaignId ?? 0),
+        leadIds: Array.isArray(input.leadIds) ? input.leadIds.map((value) => Number(value)).filter(Number.isFinite) : [],
+        provider: (requestedProvider as "resend" | "instantly" | "smartlead"),
+        dailyCap: Number(input.dailyCap ?? 100),
+      });
+      return;
+      }
+    default:
+      await failOutboundJob(jobId, `Unknown job stage: ${job.stage}`);
+      return;
+  }
 }

@@ -1,4 +1,4 @@
-import { Switch, Route, Router as WouterRouter, useLocation } from "wouter";
+import { Switch, Route, Router as WouterRouter } from "wouter";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -16,6 +16,7 @@ import Reactivation from "@/pages/reactivation";
 import Conversion from "@/pages/conversion";
 import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
+import AuthCallbackPage from "@/pages/auth-callback";
 
 const queryClient = new QueryClient();
 
@@ -44,6 +45,7 @@ function ProtectedRoute({ component: Component, ...rest }: { component: React.Co
 function Router() {
   return (
     <Switch>
+      <Route path="/auth/google/callback" component={AuthCallbackPage} />
       <Route path="/" component={() => <ProtectedRoute component={Dashboard} />} />
       <Route path="/outbound" component={() => <ProtectedRoute component={AIOutbound} />} />
       <Route path="/campaigns" component={() => <ProtectedRoute component={Campaigns} />} />

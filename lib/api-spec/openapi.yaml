@@ -8,6 +8,8 @@ servers:
     description: Versioned API v1 path (canonical)
   - url: /api
     description: Legacy unversioned path (backward compatibility)
+security:
+  - bearerAuth: []
 tags:
   - name: health
     description: Health operations
@@ -42,6 +44,7 @@ paths:
     get:
       operationId: healthCheck
       tags: [health]
+      security: []
       summary: Health check
       description: Returns server health status
       responses:
@@ -56,6 +59,7 @@ paths:
     get:
       tags: [Auth]
       operationId: getCurrentAuthUser
+      security: []
       summary: Get the currently authenticated user
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -67,10 +71,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthUserEnvelope'
+  /auth/google/start:
+    get:
+      tags: [Auth]
+      operationId: getGoogleAuthStart
+      security: []
+      summary: Generate Google OAuth authorization URL
+      parameters:
+        - name: redirectUri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth redirect URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthStartResponse'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/google/exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeGoogleAuthCode
+      security: []
+      summary: Exchange Google OAuth code for API JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthExchangeRequest'
+      responses:
+        '200':
+          description: Tokens issued successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenExchangeResponse'
+        '400':
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: OAuth exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshAuthToken
+      security: []
+      summary: Refresh JWT access token with refresh token
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenExchangeResponse'
+        '401':
+          description: Missing or invalid refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /login:
     get:
       tags: [Auth]
       operationId: beginBrowserLogin
+      security: []
       summary: Start the browser OIDC login flow
       parameters:
         - name: returnTo
@@ -85,6 +177,7 @@ paths:
     get:
       tags: [Auth]
       operationId: handleBrowserLoginCallback
+      security: []
       summary: Complete the browser OIDC login flow
       parameters:
         - name: code
@@ -110,6 +203,7 @@ paths:
     get:
       tags: [Auth]
       operationId: logoutBrowserSession
+      security: []
       summary: Clear session and begin OIDC logout
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -121,6 +215,7 @@ paths:
     post:
       tags: [Auth]
       operationId: exchangeMobileAuthorizationCode
+      security: []
       summary: Exchange a mobile OIDC code for a session token
       requestBody:
         required: true
@@ -145,6 +240,7 @@ paths:
     post:
       tags: [Auth]
       operationId: logoutMobileSession
+      security: []
       summary: Delete a mobile session token
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -1122,6 +1218,7 @@ paths:
     post:
       operationId: ingestSendingWebhook
       tags: [webhooks]
+      security: []
       summary: Ingest outbound provider webhook events
       parameters:
         - name: provider
@@ -1152,6 +1249,7 @@ paths:
     post:
       operationId: ingestCrmWebhook
       tags: [webhooks]
+      security: []
       summary: Ingest CRM event webhook
       parameters:
         - name: provider
@@ -1179,6 +1277,11 @@ paths:
                 $ref: "#/components/schemas/WebhookAck"
 
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     AuthorizationSessionHeader:
       name: Authorization
@@ -1225,6 +1328,46 @@ components:
           oneOf:
             - $ref: '#/components/schemas/AuthUser'
             - type: 'null'
+    GoogleAuthStartResponse:
+      type: object
+      required: [authUrl, state]
+      properties:
+        authUrl:
+          type: string
+          format: uri
+        state:
+          type: string
+    GoogleAuthExchangeRequest:
+      type: object
+      required: [code, state, redirectUri]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        redirectUri:
+          type: string
+          format: uri
+    AuthRefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+    AuthTokenExchangeResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        user:
+          $ref: '#/components/schemas/AuthUser'
     MobileTokenExchangeRequest:
       type: object
       required: [code, code_verifier, redirect_uri, state]

@@ -2,11 +2,13 @@ import * as oidc from "openid-client";
 import { type Request, type Response, type NextFunction } from "express";
 import type { AuthUser } from "@workspace/api-zod";
 import {
+  getBearerToken,
   clearSession,
   getOidcConfig,
   getSessionId,
   getSession,
   updateSession,
+  verifyAuthToken,
   type SessionData,
 } from "../lib/auth";
 
@@ -63,7 +65,9 @@ export async function authMiddleware(
     return this.user != null;
   } as Request["isAuthenticated"];
 
-  const sid = getSessionId(req);
+  const bearer = getBearerToken(req);
+  const bearerTokenPayload = bearer ? verifyAuthToken(bearer) : null;
+  const sid = bearerTokenPayload?.sid ?? getSessionId(req);
   if (!sid) {
     next();
     return;
@@ -71,14 +75,23 @@ export async function authMiddleware(
 
   const session = await getSession(sid);
   if (!session?.user?.id) {
-    await clearSession(res, sid);
+    if (!bearerTokenPayload) {
+      await clearSession(res, sid);
+    }
+    next();
+    return;
+  }
+
+  if (bearerTokenPayload && bearerTokenPayload.sub !== session.user.id) {
     next();
     return;
   }
 
   const refreshed = await refreshIfExpired(sid, session);
   if (!refreshed) {
-    await clearSession(res, sid);
+    if (!bearerTokenPayload) {
+      await clearSession(res, sid);
+    }
     next();
     return;
   }

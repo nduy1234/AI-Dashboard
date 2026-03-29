@@ -1,5 +1,6 @@
 import app from "./app";
 import { seedDatabase } from "./seed";
+import { startOutboundWorker } from "./lib/outboundQueue";
 
 const isDev = process.env.NODE_ENV !== "production";
 const rawPort = process.env["PORT"] || (isDev ? "5000" : undefined);
@@ -18,6 +19,7 @@ if (Number.isNaN(port) || port <= 0) {
 
 app.listen(port, async () => {
   console.log(`Server listening on port ${port}`);
+  startOutboundWorker();
   try {
     await seedDatabase();
   } catch (err) {

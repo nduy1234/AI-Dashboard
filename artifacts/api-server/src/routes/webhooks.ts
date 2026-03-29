@@ -1,36 +1,40 @@
 import { Router, type IRouter } from "express";
-import { verifyWebhookSignature } from "../lib/outboundIntegrations";
+import {
+  normalizeSendingEvent,
+  verifyProviderWebhookSignature,
+} from "../lib/outboundIntegrations";
 import {
   processCrmWebhook,
   processSendingWebhook,
-  providerSecret,
 } from "../services/webhookService";
 
 const router: IRouter = Router();
 
 router.post("/webhooks/sending/:provider", async (req, res): Promise<void> => {
   const provider = req.params.provider;
-  const signature = req.get("x-webhook-signature");
   const body = req.body as Record<string, unknown>;
   const rawPayload = JSON.stringify(body ?? {});
 
-  if (!verifyWebhookSignature(rawPayload, signature, providerSecret(provider))) {
+  if (!verifyProviderWebhookSignature(provider, rawPayload, {
+    "x-webhook-signature": req.get("x-webhook-signature") ?? undefined,
+    "x-resend-signature": req.get("x-resend-signature") ?? undefined,
+    "resend-signature": req.get("resend-signature") ?? undefined,
+    "x-instantly-signature": req.get("x-instantly-signature") ?? undefined,
+    "x-smartlead-signature": req.get("x-smartlead-signature") ?? undefined,
+  })) {
     res.status(401).json({ error: "Invalid webhook signature" });
     return;
   }
 
-  const eventId = typeof body.eventId === "string" ? body.eventId : `${provider}:${Date.now()}`;
-  const eventType = typeof body.eventType === "string" ? body.eventType : "unknown";
-  const campaignId = typeof body.campaignId === "number" ? body.campaignId : null;
-  const leadId = typeof body.leadId === "number" ? body.leadId : null;
+  const normalized = normalizeSendingEvent(provider, body);
 
   const result = await processSendingWebhook({
     provider,
-    eventId,
-    eventType,
-    campaignId,
-    leadId,
-    body,
+    eventId: normalized.eventId,
+    eventType: normalized.eventType,
+    campaignId: normalized.campaignId,
+    leadId: normalized.leadId,
+    body: normalized.payload,
   });
   if (result.deduplicated) {
     res.json(result);
@@ -41,11 +45,16 @@ router.post("/webhooks/sending/:provider", async (req, res): Promise<void> => {
 
 router.post("/webhooks/crm/:provider", async (req, res): Promise<void> => {
   const provider = req.params.provider;
-  const signature = req.get("x-webhook-signature");
   const body = req.body as Record<string, unknown>;
   const rawPayload = JSON.stringify(body ?? {});
 
-  if (!verifyWebhookSignature(rawPayload, signature, providerSecret(provider))) {
+  if (!verifyProviderWebhookSignature(provider, rawPayload, {
+    "x-webhook-signature": req.get("x-webhook-signature") ?? undefined,
+    "x-resend-signature": req.get("x-resend-signature") ?? undefined,
+    "resend-signature": req.get("resend-signature") ?? undefined,
+    "x-instantly-signature": req.get("x-instantly-signature") ?? undefined,
+    "x-smartlead-signature": req.get("x-smartlead-signature") ?? undefined,
+  })) {
     res.status(401).json({ error: "Invalid webhook signature" });
     return;
   }

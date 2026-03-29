@@ -14,7 +14,7 @@ export function providerSecret(provider: string): string {
 export async function processSendingWebhook(payload: {
   provider: string;
   eventId: string;
-  eventType: string;
+  eventType: "sent" | "open" | "reply" | "positive_reply" | "bounce" | "meeting_booked" | "unknown";
   campaignId: number | null;
   leadId: number | null;
   body: Record<string, unknown>;

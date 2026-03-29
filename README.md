@@ -80,12 +80,39 @@ AI_INTEGRATIONS_OPENAI_BASE_URL="https://api.openai.com/v1"
 # Google OAuth
 GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
+ISSUER_URL="https://accounts.google.com"
+
+# JWT auth
+JWT_SECRET="replace-with-long-random-secret"
+ACCESS_TOKEN_TTL_SECONDS="900"
+REFRESH_TOKEN_TTL_SECONDS="2592000"
 
 # Server
 PUBLIC_URL="http://localhost:3000"
 PORT="5000"
 VITE_PORT="3000"
 SWAGGER_DOCS_ENABLED="true"
+REDIS_URL="redis://127.0.0.1:6379"
+
+# Providers (Phase 1 live)
+APOLLO_API_KEY="..."
+APOLLO_BASE_URL="https://api.apollo.io"
+APOLLO_IMPORT_ENDPOINT="/v1/mixed_people/search"
+CLAY_API_KEY="..."
+CLAY_ENRICH_URL="https://..."
+MILLIONVERIFIER_API_KEY="..."
+MILLIONVERIFIER_BASE_URL="https://api.millionverifier.com/api/v3/"
+RESEND_API_KEY="..."
+RESEND_FROM_EMAIL="outbound@yourdomain.com"
+INSTANTLY_API_KEY="..."
+INSTANTLY_SEND_URL="" # optional legacy/proxy path
+INSTANTLY_BASE_URL="https://api.instantly.ai"
+INSTANTLY_ENDPOINTS_JSON='{"createCampaign":"/api/v2/campaigns","addLeads":"/api/v2/leads/add","activateCampaignTemplate":"/api/v2/campaigns/{id}/activate"}'
+INSTANTLY_TIMEZONE="Etc/GMT"
+INSTANTLY_CAMPAIGN_TEMPLATE_JSON=""
+SMARTLEAD_API_KEY="..."
+SMARTLEAD_SEND_URL="https://..."
+OUTBOUND_DISABLED_PROVIDERS="clay,smartlead"
 
 # Optional webhook secrets
 WEBHOOK_SECRET_DEFAULT="dev-webhook-secret"
@@ -110,6 +137,7 @@ pnpm -r --parallel run dev
 
 - Frontend: `http://localhost:3000`
 - Backend: `http://localhost:5000`
+- Optional dedicated worker: `pnpm --filter @workspace/api-server run worker`
 
 ## 9. API Documentation
 
@@ -122,6 +150,16 @@ Legacy aliases remain available under `/api/*`.
 Canonical OpenAPI file:
 
 - `lib/api-spec/openapi.yaml`
+
+### Frontend browser auth flow (canonical)
+
+- `artifacts/revenue-platform` uses Google SPA start/exchange + session-cookie auth for browser login.
+- Start login: `GET /api/v1/auth/google/start` (returns `authUrl`)
+- Callback exchange: `POST /api/v1/auth/google/exchange` (using frontend callback route `/auth/google/callback`)
+- Current user check: `GET /api/v1/auth/user` (with `credentials: "include"`)
+- Logout redirect: `GET /api/v1/logout`
+- Legacy `/api/*` aliases still exist for compatibility, but new frontend integrations should use `/api/v1/*`.
+- `GET /api/v1/login` remains available as a server-redirect fallback path.
 
 ## 10. OpenAPI Tooling
 
@@ -213,6 +251,12 @@ Recommended sequence:
 10. `POST /api/v1/webhooks/sending/{provider}`
 
 Always include `Idempotency-Key` on job-triggering routes.
+
+Live diagnostics script:
+
+```bash
+BASE_URL="http://localhost:5000" TOKEN="<bearer-token>" ./scripts/live-phase1-integrations.sh
+```
 
 ## 14. Build for Production
 

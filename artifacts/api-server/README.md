@@ -27,6 +27,13 @@ This backend owns:
 - Phase 1 outbound orchestration jobs
 - Sending/CRM webhook ingestion
 - KPI and analytics computations
+- Backend-managed Google OAuth + JWT issuance
+
+Auth API flow:
+
+- `GET /api/v1/auth/google/start?redirectUri=<frontend-callback-url>`
+- `POST /api/v1/auth/google/exchange` with `{ code, state, redirectUri }`
+- `POST /api/v1/auth/refresh` with refresh token (cookie or body)
 
 ## 2. Tech Stack
 
@@ -58,9 +65,35 @@ SWAGGER_DOCS_ENABLED="true"
 
 GOOGLE_CLIENT_ID="..."
 GOOGLE_CLIENT_SECRET="..."
+ISSUER_URL="https://accounts.google.com"
+
+JWT_SECRET="replace-with-long-random-secret"
+ACCESS_TOKEN_TTL_SECONDS="900"
+REFRESH_TOKEN_TTL_SECONDS="2592000"
 
 AI_INTEGRATIONS_OPENAI_API_KEY="sk-..."
 AI_INTEGRATIONS_OPENAI_BASE_URL="https://api.openai.com/v1"
+
+REDIS_URL="redis://127.0.0.1:6379"
+
+APOLLO_API_KEY="..."
+APOLLO_BASE_URL="https://api.apollo.io"
+APOLLO_IMPORT_ENDPOINT="/v1/mixed_people/search"
+CLAY_API_KEY="..."
+CLAY_ENRICH_URL="https://..."
+MILLIONVERIFIER_API_KEY="..."
+MILLIONVERIFIER_BASE_URL="https://api.millionverifier.com/api/v3/"
+RESEND_API_KEY="..."
+RESEND_FROM_EMAIL="outbound@yourdomain.com"
+INSTANTLY_API_KEY="..."
+INSTANTLY_SEND_URL="" # optional legacy/proxy path
+INSTANTLY_BASE_URL="https://api.instantly.ai"
+INSTANTLY_ENDPOINTS_JSON='{"createCampaign":"/api/v2/campaigns","addLeads":"/api/v2/leads/add","activateCampaignTemplate":"/api/v2/campaigns/{id}/activate"}'
+INSTANTLY_TIMEZONE="Etc/GMT"
+INSTANTLY_CAMPAIGN_TEMPLATE_JSON=""
+SMARTLEAD_API_KEY="..."
+SMARTLEAD_SEND_URL="https://..."
+OUTBOUND_DISABLED_PROVIDERS="clay,smartlead"
 
 WEBHOOK_SECRET_DEFAULT="dev-webhook-secret"
 WEBHOOK_SECRET_RESEND="..."
@@ -74,6 +107,7 @@ Run from repo root:
 
 ```bash
 pnpm --filter @workspace/api-server run dev
+pnpm --filter @workspace/api-server run worker
 pnpm --filter @workspace/api-server run typecheck
 pnpm --filter @workspace/api-server run build
 pnpm --filter @workspace/api-server run seed:phase1.1
@@ -144,14 +178,26 @@ Webhook routes:
 - `POST /api/v1/webhooks/sending/{provider}`
 - `POST /api/v1/webhooks/crm/{provider}`
 
-Required header:
+Supported provider headers:
 
-- `x-webhook-signature`
+- Resend: `x-resend-signature` (or `resend-signature`)
+- Instantly: `x-instantly-signature`
+- Smartlead: `x-smartlead-signature`
+- Fallback providers: `x-webhook-signature`
 
 Signature algorithm:
 
 - HMAC SHA256 over raw JSON body
 - secret from `WEBHOOK_SECRET_<PROVIDER>` or fallback `WEBHOOK_SECRET_DEFAULT`
+
+Event normalization maps provider payloads into:
+
+- `sent`
+- `open`
+- `reply`
+- `positive_reply`
+- `bounce`
+- `meeting_booked`
 
 ## 11. Smoke Test Order
 
@@ -167,6 +213,12 @@ Signature algorithm:
 10. `POST /api/v1/webhooks/sending/{provider}`
 
 For every mutating outbound job call, send `Idempotency-Key` header.
+
+Run live integration diagnostics:
+
+```bash
+BASE_URL="http://localhost:5000" TOKEN="<bearer-token>" ./scripts/live-phase1-integrations.sh
+```
 
 ## 12. Troubleshooting
 

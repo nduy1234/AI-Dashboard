@@ -2,7 +2,7 @@ import { Router, type IRouter } from "express";
 import { z } from "zod";
 import { requireOrgRole } from "../middlewares/requireRole";
 import { requireIdempotencyKey } from "../middlewares/requireIdempotencyKey";
-import { outboundPhaseOneConfig } from "../lib/outboundConfig";
+import { getOutboundRuntimeConfig, isOutboundProviderEnabled } from "../lib/outboundConfig";
 import { getOwnerContext } from "../security/ownerContext";
 import {
   createOrGetJob,
@@ -10,13 +10,9 @@ import {
   getLeadPipeline,
   getOwnedJob,
   retryJob,
-  runEnrichJob,
-  runImportJob,
-  runLaunchJob,
-  runPersonalizeJob,
   runPilot,
-  runVerifyJob,
 } from "../services/outboundService";
+import { enqueueOutboundJob } from "../lib/outboundQueue";
 
 const router: IRouter = Router();
 
@@ -73,12 +69,8 @@ router.post(
     const owner = getOwnerContext(req);
     const job = await createOrGetJob("import", payload as unknown as Record<string, unknown>, owner, req.header("Idempotency-Key") ?? null);
 
-    try {
-      const result = await runImportJob(owner, job.id, payload);
-      res.status(201).json({ jobId: job.id, ...result });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to run import job" });
-    }
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
   },
 );
 
@@ -94,14 +86,14 @@ router.post(
     }
     const owner = getOwnerContext(req);
     const provider = parsed.data.provider ?? "clay";
+    if (!isOutboundProviderEnabled(provider)) {
+      res.status(400).json({ error: `Provider '${provider}' is disabled` });
+      return;
+    }
     const job = await createOrGetJob("enrich", { ...parsed.data, provider }, owner, req.header("Idempotency-Key") ?? null);
 
-    try {
-      const result = await runEnrichJob(owner, job.id, { leadIds: parsed.data.leadIds, provider });
-      res.json({ jobId: job.id, ...result });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to run enrich job" });
-    }
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
   },
 );
 
@@ -119,12 +111,8 @@ router.post(
     const provider = parsed.data.provider ?? "millionverifier";
     const job = await createOrGetJob("verify", { ...parsed.data, provider }, owner, req.header("Idempotency-Key") ?? null);
 
-    try {
-      const result = await runVerifyJob(owner, job.id, { leadIds: parsed.data.leadIds, provider });
-      res.json({ jobId: job.id, ...result });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to run verify job" });
-    }
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
   },
 );
 
@@ -142,12 +130,8 @@ router.post(
     const owner = getOwnerContext(req);
     const job = await createOrGetJob("personalize", parsed.data as unknown as Record<string, unknown>, owner, req.header("Idempotency-Key") ?? null);
 
-    try {
-      const result = await runPersonalizeJob(owner, job.id, parsed.data);
-      res.json({ jobId: job.id, ...result });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to run personalization job" });
-    }
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
   },
 );
 
@@ -162,18 +146,14 @@ router.post(
       return;
     }
     const owner = getOwnerContext(req);
+    if (!isOutboundProviderEnabled(parsed.data.provider)) {
+      res.status(400).json({ error: `Provider '${parsed.data.provider}' is disabled` });
+      return;
+    }
     const job = await createOrGetJob("launch", parsed.data as unknown as Record<string, unknown>, owner, req.header("Idempotency-Key") ?? null);
 
-    try {
-      const result = await runLaunchJob(owner, job.id, parsed.data);
-      if (!result) {
-        res.status(404).json({ error: "Campaign not found" });
-        return;
-      }
-      res.json({ jobId: job.id, ...result });
-    } catch (error) {
-      res.status(500).json({ error: "Failed to run launch job" });
-    }
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
   },
 );
 
@@ -194,6 +174,7 @@ router.post(
       res.status(404).json({ error: "Job not found" });
       return;
     }
+    await enqueueOutboundJob(jobId);
     res.json(result);
   },
 );
@@ -222,7 +203,7 @@ router.get("/outbound/leads/pipeline", async (req, res): Promise<void> => {
 });
 
 router.get("/outbound/config", async (_req, res): Promise<void> => {
-  res.json(outboundPhaseOneConfig);
+  res.json(getOutboundRuntimeConfig());
 });
 
 router.get("/outbound/campaigns/:id/performance", async (req, res): Promise<void> => {

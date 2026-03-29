@@ -52,7 +52,7 @@ export async function createOutboundJob(
     .insert(outboundJobsTable)
     .values({
       stage,
-      status: "processing",
+      status: "queued",
       input: payload,
       idempotencyKey: idempotencyKey ?? undefined,
       userId: owner.userId,
@@ -61,6 +61,18 @@ export async function createOutboundJob(
     })
     .returning();
   return created;
+}
+
+export async function setOutboundJobStatus(jobId: number, status: string) {
+  await db
+    .update(outboundJobsTable)
+    .set({ status, updatedAt: new Date() })
+    .where(eq(outboundJobsTable.id, jobId));
+}
+
+export async function getJobById(jobId: number) {
+  const [job] = await db.select().from(outboundJobsTable).where(eq(outboundJobsTable.id, jobId));
+  return job;
 }
 
 export async function completeOutboundJob(jobId: number, result: Record<string, unknown>) {
@@ -366,7 +378,7 @@ export async function setJobRetryResult(jobId: number, attempt: number) {
   await db
     .update(outboundJobsTable)
     .set({
-      status: "completed",
+      status: "queued",
       error: null,
       result: { retried: true, attempt },
       updatedAt: new Date(),

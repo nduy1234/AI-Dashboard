@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "NODE_ENV=development tsx --env-file=../../.env ./src/index.ts",
+    "worker": "NODE_ENV=development tsx --env-file=../../.env ./src/worker.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed:phase1.1": "NODE_ENV=development tsx --env-file=../../.env ./src/seedPhase11Operationalization.ts"
@@ -14,10 +15,13 @@
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
+    "bullmq": "^5.71.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.3",
     "openid-client": "^6.0.0",
     "swagger-ui-express": "^5.0.1",
     "yaml": "^2.8.3",
@@ -27,6 +31,7 @@
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"

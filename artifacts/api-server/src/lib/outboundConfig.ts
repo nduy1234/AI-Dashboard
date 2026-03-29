@@ -16,6 +16,29 @@ export const outboundPhaseOneConfig = {
   },
 } as const;
 
+const disabledProviders = new Set(
+  (process.env.OUTBOUND_DISABLED_PROVIDERS ?? "")
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean),
+);
+
+export function isOutboundProviderEnabled(provider: string): boolean {
+  return !disabledProviders.has(provider.toLowerCase());
+}
+
+export function getOutboundRuntimeConfig() {
+  return {
+    ...outboundPhaseOneConfig,
+    providers: {
+      ...outboundPhaseOneConfig.providers,
+      enrichment: outboundPhaseOneConfig.providers.enrichment.filter((provider) => isOutboundProviderEnabled(provider)),
+      sending: outboundPhaseOneConfig.providers.sending.filter((provider) => isOutboundProviderEnabled(provider)),
+    },
+    disabledProviders: Array.from(disabledProviders),
+  };
+}
+
 export type OutboundProvider =
   | "apollo"
   | "csv_import"

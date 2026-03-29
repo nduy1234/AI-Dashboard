@@ -1,5 +1,6 @@
 import * as client from "openid-client";
 import crypto from "crypto";
+import jwt from "jsonwebtoken";
 import { type Request, type Response } from "express";
 import { db, sessionsTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -7,7 +8,17 @@ import type { AuthUser } from "@workspace/api-zod";
 
 export const ISSUER_URL = process.env.ISSUER_URL ?? "https://accounts.google.com";
 export const SESSION_COOKIE = "sid";
+export const REFRESH_COOKIE = "refresh_token";
 export const SESSION_TTL = 7 * 24 * 60 * 60 * 1000;
+export const ACCESS_TOKEN_TTL_SECONDS = Number(process.env.ACCESS_TOKEN_TTL_SECONDS ?? 15 * 60);
+export const REFRESH_TOKEN_TTL_SECONDS = Number(process.env.REFRESH_TOKEN_TTL_SECONDS ?? 30 * 24 * 60 * 60);
+
+export type AuthTokenPayload = {
+  sub: string;
+  sid: string;
+  email?: string | null;
+  type: "access" | "refresh";
+};
 
 export interface SessionData {
   user: AuthUser;
@@ -87,4 +98,54 @@ export function getSessionId(req: Request): string | undefined {
     return authHeader.slice(7);
   }
   return req.cookies?.[SESSION_COOKIE];
+}
+
+function getJwtSecret(): string {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) {
+    throw new Error("Missing JWT_SECRET");
+  }
+  return secret;
+}
+
+export function signAccessToken(user: AuthUser, sid: string): string {
+  const payload: AuthTokenPayload = {
+    sub: user.id,
+    sid,
+    email: user.email ?? null,
+    type: "access",
+  };
+  return jwt.sign(payload, getJwtSecret(), {
+    expiresIn: ACCESS_TOKEN_TTL_SECONDS,
+  });
+}
+
+export function signRefreshToken(user: AuthUser, sid: string): string {
+  const payload: AuthTokenPayload = {
+    sub: user.id,
+    sid,
+    email: user.email ?? null,
+    type: "refresh",
+  };
+  return jwt.sign(payload, getJwtSecret(), {
+    expiresIn: REFRESH_TOKEN_TTL_SECONDS,
+  });
+}
+
+export function verifyAuthToken(token: string): AuthTokenPayload | null {
+  try {
+    const decoded = jwt.verify(token, getJwtSecret()) as AuthTokenPayload;
+    if (!decoded?.sid || !decoded?.sub || !decoded?.type) return null;
+    return decoded;
+  } catch {
+    return null;
+  }
+}
+
+export function getBearerToken(req: Request): string | undefined {
+  const authHeader = req.headers["authorization"];
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.slice(7);
+  }
+  return undefined;
 }
