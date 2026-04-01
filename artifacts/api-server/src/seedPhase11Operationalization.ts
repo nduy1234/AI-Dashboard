@@ -213,10 +213,16 @@ export async function seedPhase11Operationalization(userId: string): Promise<voi
       description: "Inbound visitor deanonymization signal source",
     }),
     upsertIntegration(userId, orgId, {
-      name: "n8n",
-      type: "n8n",
-      category: "orchestration",
-      description: "Primary deterministic workflow orchestrator",
+      name: "Slack",
+      type: "slack",
+      category: "notifications",
+      description: "Sales rep alerts for positive replies and meetings booked",
+    }),
+    upsertIntegration(userId, orgId, {
+      name: "Cal.com",
+      type: "calcom",
+      category: "meeting_booking",
+      description: "Inbound meeting booking conversion tracking",
     }),
   ]);
 

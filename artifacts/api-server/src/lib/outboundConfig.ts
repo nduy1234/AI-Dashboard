@@ -5,7 +5,7 @@ export const outboundPhaseOneConfig = {
     enrichment: ["clay", "manual_fallback"],
     verification: ["millionverifier", "internal_rule_engine"],
     sending: ["instantly", "smartlead", "resend"],
-    orchestration: ["n8n", "langchain"],
+    orchestration: ["langchain"],
     modelRouting: ["openai", "ollama", "groq"],
   },
   kpiTargets: {

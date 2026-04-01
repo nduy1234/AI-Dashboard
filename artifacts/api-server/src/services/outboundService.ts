@@ -1,6 +1,7 @@
 import type { OwnerContext } from "../security/ownerContext";
 import { launchInstantlyCampaign, outboundMcpTools } from "../lib/outboundIntegrations";
 import { isOutboundProviderEnabled, outboundPhaseOneConfig } from "../lib/outboundConfig";
+import { notifyCampaignLaunched } from "../lib/slackClient";
 import {
   activateCampaign,
   completeOutboundJob,
@@ -306,6 +307,7 @@ export async function runLaunchJob(
       }
 
       await activateCampaign(campaign.id, sent, tx);
+      notifyCampaignLaunched(campaign.name, sent);
       await createAgentLog({
         agentType: "outbound",
         action: "launch_campaign",

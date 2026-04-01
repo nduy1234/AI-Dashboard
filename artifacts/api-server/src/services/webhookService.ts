@@ -4,7 +4,10 @@ import {
   createAnalyticsEvent,
   createSendingEvent,
   findSendingEvent,
+  getOwnedCampaignById,
+  listOwnedLeadsByIds,
 } from "../repositories/outboundRepository";
+import { notifyMeetingBooked, notifyPositiveReply } from "../lib/slackClient";
 
 export function providerSecret(provider: string): string {
   const envKey = `WEBHOOK_SECRET_${provider.toUpperCase()}`;
@@ -38,6 +41,22 @@ export async function processSendingWebhook(payload: {
       await applyCampaignEventDelta(payload.campaignId, payload.eventType, tx);
     }
   });
+
+  // Fire Slack notifications for high-value events (non-blocking)
+  if (payload.leadId && payload.campaignId) {
+    if (payload.eventType === "positive_reply" || payload.eventType === "meeting_booked") {
+      const leads = await listOwnedLeadsByIds([payload.leadId], { userId: "system", orgId: null }).catch(() => []);
+      const campaign = await getOwnedCampaignById(payload.campaignId, { userId: "system", orgId: null }).catch(() => null);
+      const lead = leads[0];
+      if (lead && campaign) {
+        if (payload.eventType === "positive_reply") {
+          notifyPositiveReply(lead, campaign);
+        } else {
+          notifyMeetingBooked(lead, campaign);
+        }
+      }
+    }
+  }
 
   return { ok: true, deduplicated: false };
 }

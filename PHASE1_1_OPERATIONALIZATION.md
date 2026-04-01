@@ -5,7 +5,6 @@ This document moves Phase 1 from implemented APIs to repeatable day-to-day opera
 ## Outcomes
 
 - Bootstrap sender providers and domain pool in database.
-- Connect a baseline n8n flow to outbound job endpoints.
 - Run a pilot and validate KPI thresholds through API.
 
 ## Prerequisites
@@ -27,7 +26,7 @@ SEED_USER_ID="<your-user-id>" pnpm --filter @workspace/api-server run seed:phase
 
 This script ensures:
 
-- Integrations: `apollo`, `clay`, `millionverifier`, `resend`, `hubspot`, `calcom`, `rb2b`, `n8n`
+- Integrations: `apollo`, `clay`, `millionverifier`, `resend`, `hubspot`, `calcom`, `rb2b`
 - Provider accounts: `resend`, `instantly`, `smartlead`
 - Domain pool baseline with safe daily limits and warmup enabled
 
@@ -35,30 +34,8 @@ Script path:
 
 - `artifacts/api-server/src/seedPhase11Operationalization.ts`
 
-## Step 2: Import n8n baseline workflow
 
-Workflow file:
-
-- `artifacts/api-server/workflows/outbound-phase1-1.n8n.workflow.json`
-
-Import into n8n and set an input object containing:
-
-- `baseUrl` (example: `http://localhost:5000`)
-- `token` (session bearer token)
-- `campaignId` (existing campaign id)
-- `leadIds` (array of lead ids)
-- `leads` (array of lead objects for import stage)
-
-Flow stages:
-
-1. Create import job
-2. Create enrich job
-3. Create verify job
-4. Create personalize job
-5. Create launch job
-6. Validate pilot KPIs
-
-## Step 3: Pilot execution checklist
+## Step 2: Pilot execution checklist
 
 - Confirm frozen config:
   - `GET /api/v1/outbound/config`

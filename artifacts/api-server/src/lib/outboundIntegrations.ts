@@ -120,15 +120,23 @@ class ClayAdapter implements OutboundProviderAdapter {
   async enrichLead(lead: { email: string; company: string; title: string }): Promise<EnrichedLead> {
     const apiKey = process.env.CLAY_API_KEY;
     const enrichUrl = process.env.CLAY_ENRICH_URL;
-    if (apiKey && enrichUrl) {
+    const webhookAuthToken = process.env.CLAY_WEBHOOK_AUTH_TOKEN;
+
+    if (enrichUrl && (webhookAuthToken || apiKey)) {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      if (webhookAuthToken) {
+        headers["x-clay-webhook-auth"] = webhookAuthToken;
+      } else if (apiKey) {
+        headers.Authorization = `Bearer ${apiKey}`;
+      }
+
       const response = await requestJsonWithRetry<Record<string, unknown>>(
         enrichUrl,
         {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers,
           body: toJsonBody({
             email: lead.email,
             company: lead.company,

@@ -114,6 +114,7 @@ SMARTLEAD_API_KEY="..."
 SMARTLEAD_SEND_URL="https://..."
 OUTBOUND_DISABLED_PROVIDERS="clay,smartlead"
 
+
 # Optional webhook secrets
 WEBHOOK_SECRET_DEFAULT="dev-webhook-secret"
 WEBHOOK_SECRET_RESEND="..."
@@ -217,21 +218,8 @@ Script path:
 
 - `artifacts/api-server/src/seedPhase11Operationalization.ts`
 
-### 12.2 Import n8n workflow template
 
-Workflow file:
-
-- `artifacts/api-server/workflows/outbound-phase1-1.n8n.workflow.json`
-
-Expected workflow input fields:
-
-- `baseUrl`
-- `token`
-- `campaignId`
-- `leadIds`
-- `leads`
-
-### 12.3 Full operational runbook
+### 12.2 Full operational runbook
 
 - `PHASE1_1_OPERATIONALIZATION.md`
 

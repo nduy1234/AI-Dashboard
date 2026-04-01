@@ -272,6 +272,20 @@ export async function getLatestOutboundMessage(campaignId: number, leadId: numbe
   return message;
 }
 
+export async function findRecentCampaignForEmail(email: string) {
+  const [match] = await db
+    .select({
+      leadId: leadsTable.id,
+      campaignId: outboundMessagesTable.campaignId,
+    })
+    .from(outboundMessagesTable)
+    .innerJoin(leadsTable, eq(outboundMessagesTable.leadId, leadsTable.id))
+    .where(eq(leadsTable.email, email))
+    .orderBy(desc(outboundMessagesTable.sentAt), desc(outboundMessagesTable.createdAt));
+  
+  return match ?? null;
+}
+
 type DbExecutor = {
   insert: typeof db.insert;
   update: typeof db.update;

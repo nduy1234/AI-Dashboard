@@ -63,4 +63,49 @@ router.post("/webhooks/crm/:provider", async (req, res): Promise<void> => {
   res.status(202).json(result);
 });
 
+import { parseCalcomWebhook, validateCalcomWebhook } from "../lib/calcomClient";
+import { findRecentCampaignForEmail } from "../repositories/outboundRepository";
+
+router.post("/webhooks/calcom", async (req, res): Promise<void> => {
+  const body = req.body as Record<string, unknown>;
+  const rawPayload = JSON.stringify(body ?? {});
+  const signature = req.get("X-Cal-Signature-256");
+
+  if (!signature || !validateCalcomWebhook(signature, rawPayload)) {
+    res.status(401).json({ error: "Invalid Cal.com webhook signature" });
+    return;
+  }
+
+  // Cal.com sends a PING event when setting up the webhook
+  if (body.triggerEvent === "PING" || body.triggerEvent === "ping") {
+    res.status(202).json({ ok: true, note: "Ping received" });
+    return;
+  }
+
+  const { email, bookingId } = parseCalcomWebhook(body);
+  if (!email || !bookingId) {
+    res.status(400).json({ error: "Missing email or booking ID in payload", debug: body });
+    return;
+  }
+
+  const match = await findRecentCampaignForEmail(email);
+  if (!match) {
+    // If we can't find a matching outbound campaign lead, we just log it as a CRM webhooks
+    await processCrmWebhook("calcom", body);
+    res.status(202).json({ ok: true, note: "Unmatched to outbound campaign" });
+    return;
+  }
+
+  const result = await processSendingWebhook({
+    provider: "calcom",
+    eventId: bookingId,
+    eventType: "meeting_booked",
+    campaignId: match.campaignId,
+    leadId: match.leadId,
+    body,
+  });
+
+  res.status(202).json(result);
+});
+
 export default router;
