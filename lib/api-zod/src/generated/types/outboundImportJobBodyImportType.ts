@@ -6,6 +6,13 @@
  * OpenAPI spec version: 0.1.0
  */
 
+/**
+ * How leads are being supplied:
+- `api` — pulled live from a provider API (e.g. Apollo)
+- `export` — uploaded as a CSV / bulk list
+- `manual` — inline `leads` array in the request body
+
+ */
 export type OutboundImportJobBodyImportType =
   (typeof OutboundImportJobBodyImportType)[keyof typeof OutboundImportJobBodyImportType];
 

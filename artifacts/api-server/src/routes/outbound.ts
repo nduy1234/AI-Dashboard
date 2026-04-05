@@ -19,6 +19,14 @@ const router: IRouter = Router();
 const importBodySchema = z.object({
   source: z.string().min(1),
   importType: z.enum(["api", "export", "manual"]).default("manual"),
+  apolloSearchType: z.enum([
+    "contacts_search",
+    "organization_top_people",
+    "organization_search",
+    "organization_enrich",
+  ]).optional(),
+  page: z.number().int().positive().default(1),
+  perPage: z.number().int().positive().max(100).default(25),
   leads: z.array(z.object({
     firstName: z.string().min(1),
     lastName: z.string().min(1),
@@ -52,6 +60,17 @@ const launchBodySchema = z.object({
   leadIds: z.array(z.number().int().positive()).min(1),
   provider: z.enum(["instantly", "smartlead", "resend"]).default("resend"),
   dailyCap: z.number().int().positive().max(1000).default(100),
+});
+
+const runAllSchema = z.object({
+  source: z.string().default("apollo"),
+  campaignId: z.number().int().positive(),
+  filters: z.record(z.string(), z.unknown()).optional(),
+  enrichProvider: z.string().optional(),
+  verifyProvider: z.string().optional(),
+  personalizeProvider: z.string().optional(),
+  launchProvider: z.enum(["instantly", "smartlead", "resend"]).optional(),
+  dailyCap: z.number().int().positive().max(1000).optional(),
 });
 
 router.post(
@@ -151,6 +170,24 @@ router.post(
       return;
     }
     const job = await createOrGetJob("launch", parsed.data as unknown as Record<string, unknown>, owner, req.header("Idempotency-Key") ?? null);
+
+    await enqueueOutboundJob(job.id);
+    res.status(202).json({ jobId: job.id, status: "queued" });
+  },
+);
+
+router.post(
+  "/outbound/jobs/run-all",
+  requireOrgRole(["owner", "admin"]),
+  requireIdempotencyKey,
+  async (req, res): Promise<void> => {
+    const parsed = runAllSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+    const owner = getOwnerContext(req);
+    const job = await createOrGetJob("run_all_pipeline", parsed.data as unknown as Record<string, unknown>, owner, req.header("Idempotency-Key") ?? null);
 
     await enqueueOutboundJob(job.id);
     res.status(202).json({ jobId: job.id, status: "queued" });

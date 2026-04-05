@@ -9,6 +9,24 @@ export interface HealthStatus {
   status: string;
 }
 
+export type OutboundRunAllBodyFilters = { [key: string]: unknown };
+
+export interface OutboundRunAllBody {
+  source?: string;
+  campaignId: number;
+  filters?: OutboundRunAllBodyFilters;
+  enrichProvider?: string;
+  verifyProvider?: string;
+  personalizeProvider?: string;
+  launchProvider?: string;
+  dailyCap?: number;
+}
+
+export interface JobQueuedResult {
+  jobId: number;
+  status: string;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */
@@ -23,6 +41,37 @@ export interface AuthUser {
 
 export interface AuthUserEnvelope {
   user: AuthUser | null;
+}
+
+export interface GoogleAuthStartResponse {
+  authUrl: string;
+  state: string;
+}
+
+export interface GoogleAuthExchangeRequest {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  state: string;
+  redirectUri: string;
+}
+
+export interface AuthRefreshRequest {
+  refreshToken?: string;
+}
+
+export type AuthTokenExchangeResponseTokenType =
+  (typeof AuthTokenExchangeResponseTokenType)[keyof typeof AuthTokenExchangeResponseTokenType];
+
+export const AuthTokenExchangeResponseTokenType = {
+  Bearer: "Bearer",
+} as const;
+
+export interface AuthTokenExchangeResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: AuthTokenExchangeResponseTokenType;
+  user: AuthUser;
 }
 
 export interface MobileTokenExchangeRequest {
@@ -439,6 +488,13 @@ export interface OutboundLeadInput {
   notes?: string;
 }
 
+/**
+ * How leads are being supplied:
+- `api` — pulled live from a provider API (e.g. Apollo)
+- `export` — uploaded as a CSV / bulk list
+- `manual` — inline `leads` array in the request body
+
+ */
 export type OutboundImportJobBodyImportType =
   (typeof OutboundImportJobBodyImportType)[keyof typeof OutboundImportJobBodyImportType];
 
@@ -448,13 +504,57 @@ export const OutboundImportJobBodyImportType = {
   manual: "manual",
 } as const;
 
+/**
+ * Which Apollo API endpoint to call. Only used when `source` is `apollo`.
+All values below are confirmed to work on the free plan.
+
+| Value | Apollo endpoint | Returns emails? | Best for |
+|---|---|---|---|
+| `contacts_search` | `api/v1/contacts/search` | Yes | Search your own saved Apollo contacts by keyword, title, company etc. |
+| `organization_top_people` | `api/v1/mixed_people/organization_top_people` | Sometimes | Get key decision-makers from a specific company — pass `organization_id` in filters |
+| `organization_search` | `api/v1/organizations/search` | No | Find companies matching industry, size, location etc. |
+| `organization_enrich` | `api/v1/organizations/enrich` | No | Enrich a single company by domain — pass `domain` in filters |
+
+**Recommended free-plan flow:**
+1. `organization_search` → find matching companies, get Apollo org IDs
+2. `organization_top_people` → get decision-makers per company (pass `organization_id`)
+3. Run Clay Enrich job on the imported leads to get verified emails
+
+ */
+export type ApolloSearchType =
+  (typeof ApolloSearchType)[keyof typeof ApolloSearchType];
+
+export const ApolloSearchType = {
+  contacts_search: "contacts_search",
+  organization_top_people: "organization_top_people",
+  organization_search: "organization_search",
+  organization_enrich: "organization_enrich",
+} as const;
+
+/**
+ * Provider-specific search filters forwarded directly to the provider API.
+For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+`organization_industry_tag_ids`, `num_employees_ranges`, etc.
+
+ */
 export type OutboundImportJobBodyFilters = { [key: string]: unknown };
 
 export interface OutboundImportJobBody {
+  /** Provider to source leads from (e.g. `apollo`, `manual`, `csv`) */
   source: string;
   importType?: OutboundImportJobBodyImportType;
+  apolloSearchType?: ApolloSearchType;
+  /** Inline lead list (used when importType is `manual`) */
   leads?: OutboundLeadInput[];
+  /** Provider-specific search filters forwarded directly to the provider API.
+For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+`organization_industry_tag_ids`, `num_employees_ranges`, etc.
+ */
   filters?: OutboundImportJobBodyFilters;
+  /** Page number for paginated provider results (Apollo supports up to 500 pages) */
+  page?: number;
+  /** Number of results per page (max 100 for Apollo) */
+  perPage?: number;
   campaignId?: number;
 }
 
@@ -595,6 +695,11 @@ export interface WebhookAck {
 }
 
 export type AuthorizationSessionHeaderParameter = string;
+
+export type GetGoogleAuthStartParams = {
+  redirectUri: string;
+  returnTo?: string;
+};
 
 export type BeginBrowserLoginParams = {
   returnTo?: string;

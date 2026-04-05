@@ -308,16 +308,20 @@ export default function AIOutbound() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="bg-muted/30 rounded-xl p-6 border border-border">
-                  <div className="text-sm font-medium text-muted-foreground mb-4 border-b border-border/50 pb-4">
-                    <p><span className="text-foreground">Subject:</span> TechCorp's engineering velocity</p>
-                  </div>
-                  <div className="prose prose-sm dark:prose-invert max-w-none text-foreground">
-                    <p>Hi Jane,</p>
-                    <p>Noticed TechCorp recently raised Series B and is hiring heavily for backend roles. With that rapid scaling, maintaining engineering velocity usually becomes a bottleneck.</p>
-                    <p>We built Agentic AI to automate the repetitive parts of your workflow, letting your senior engineers focus on architecture rather than boilerplate.</p>
-                    <p>Open to a brief chat next week to see how we compare to your current internal tooling?</p>
-                    <p>Best,<br/>Alex</p>
-                  </div>
+                  {personalizeMutation.data ? (
+                    <>
+                      <div className="text-sm font-medium text-muted-foreground mb-4 border-b border-border/50 pb-4">
+                        <p><span className="text-foreground">Subject:</span> {personalizeMutation.data.subjectLine}</p>
+                      </div>
+                      <div className="prose prose-sm dark:prose-invert max-w-none text-foreground whitespace-pre-wrap">
+                        {personalizeMutation.data.body}
+                      </div>
+                    </>
+                  ) : (
+                    <div className="text-center text-muted-foreground p-4">
+                      No sample generated yet. Enter context and click Generate Sample.
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex justify-end gap-3">
@@ -396,12 +400,7 @@ export default function AIOutbound() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    { order: 1, delay: "Immediate", subject: "Quick question about {{company}}", preview: "Hi {{firstName}}, I noticed {{company}} is scaling rapidly..." },
-                    { order: 2, delay: "2 days later", subject: "Re: {{company}}'s growth strategy", preview: "{{firstName}}, wanted to follow up on my previous note..." },
-                    { order: 3, delay: "4 days later", subject: "{{firstName}}, a case study for you", preview: "Hi {{firstName}}, thought you might find this relevant..." },
-                    { order: 4, delay: "7 days later", subject: "Last note, {{firstName}}", preview: "{{firstName}}, I know you're busy so I'll keep this brief..." },
-                  ].map((email) => (
+                  {sequenceMutation.data?.emails ? sequenceMutation.data.emails.map((email) => (
                     <div key={email.order} className="p-4 rounded-lg border border-border bg-muted/20">
                       <div className="flex items-center gap-3 mb-2">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
@@ -415,9 +414,13 @@ export default function AIOutbound() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-sm text-muted-foreground ml-11">{email.preview}</p>
+                      <p className="text-sm text-muted-foreground ml-11 whitespace-pre-wrap">{email.body}</p>
                     </div>
-                  ))}
+                  )) : (
+                    <div className="text-center p-8 text-muted-foreground">
+                      No sequence generated yet. Configure options and click "AI Generate Sequence".
+                    </div>
+                  )}
                 </div>
               </CardContent>
               <CardFooter className="flex justify-end gap-3 border-t pt-4">

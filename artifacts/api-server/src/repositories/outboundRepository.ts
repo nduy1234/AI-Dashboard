@@ -102,21 +102,39 @@ export async function createLeadFromImport(
   source: string,
   owner: OwnerContext,
 ) {
-  await db.insert(leadsTable).values({
-    firstName: String(lead.firstName ?? "Unknown"),
-    lastName: String(lead.lastName ?? "Unknown"),
-    email: String(lead.email),
+  // Build notes: merge any existing notes string with apolloId / website metadata
+  // so the caller can retrieve the Apollo org ID later for organization_top_people
+  const metaFields: Record<string, string> = {};
+  if (typeof lead.apolloId === "string" && lead.apolloId) metaFields.apolloId = lead.apolloId;
+  if (typeof lead.website === "string" && lead.website) metaFields.website = lead.website;
+  const existingNotes = typeof lead.notes === "string" ? lead.notes : null;
+  const notesValue = Object.keys(metaFields).length > 0
+    ? JSON.stringify(metaFields) + (existingNotes ? `\n${existingNotes}` : "")
+    : existingNotes;
+
+  // For org-only imports (no email), build a stable placeholder so the NOT NULL constraint is satisfied.
+  // Placeholder format: apollo-org-{apolloId}@placeholder.local
+  const email = typeof lead.email === "string" && lead.email
+    ? lead.email
+    : `apollo-org-${lead.apolloId ?? lead.company ?? Date.now()}@placeholder.local`;
+
+  const [inserted] = await db.insert(leadsTable).values({
+    firstName: String(lead.firstName ?? ""),
+    lastName: String(lead.lastName ?? ""),
+    email,
     company: String(lead.company ?? "Unknown"),
-    title: String(lead.title ?? "Unknown"),
+    title: String(lead.title ?? ""),
     source,
     status: "sourced",
     industry: typeof lead.industry === "string" ? lead.industry : null,
     companySize: typeof lead.companySize === "string" ? lead.companySize : null,
     linkedinUrl: typeof lead.linkedinUrl === "string" ? lead.linkedinUrl : null,
-    notes: typeof lead.notes === "string" ? lead.notes : null,
+    notes: notesValue,
     userId: owner.userId,
     orgId: owner.orgId,
-  });
+  }).returning({ id: leadsTable.id });
+  
+  return inserted;
 }
 
 export async function createLeadSourceRecord(

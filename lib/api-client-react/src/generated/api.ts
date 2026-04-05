@@ -30,6 +30,8 @@ import type {
   AgentLog,
   AnalyticsOverview,
   ApiKey,
+  AuthRefreshRequest,
+  AuthTokenExchangeResponse,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   Campaign,
@@ -45,11 +47,15 @@ import type {
   EmailAccount,
   ErrorEnvelope,
   GetAnalyticsOverviewParams,
+  GetGoogleAuthStartParams,
+  GoogleAuthExchangeRequest,
+  GoogleAuthStartResponse,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   ImportLeadsBody,
   ImportLeadsResult,
   Integration,
+  JobQueuedResult,
   KnowledgeBaseDoc,
   Lead,
   ListAgentLogsParams,
@@ -69,6 +75,7 @@ import type {
   OutboundPilotRunBody,
   OutboundPilotRunResult,
   OutboundPipelineStats,
+  OutboundRunAllBody,
   PromptTemplate,
   TeamMember,
   UpdateCampaignBody,
@@ -240,6 +247,282 @@ export function useGetCurrentAuthUser<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Generate Google OAuth authorization URL
+ */
+export const getGetGoogleAuthStartUrl = (params: GetGoogleAuthStartParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/auth/google/start?${stringifiedParams}`
+    : `/api/v1/auth/google/start`;
+};
+
+export const getGoogleAuthStart = async (
+  params: GetGoogleAuthStartParams,
+  options?: RequestInit,
+): Promise<GoogleAuthStartResponse> => {
+  return customFetch<GoogleAuthStartResponse>(
+    getGetGoogleAuthStartUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAuthStartQueryKey = (
+  params?: GetGoogleAuthStartParams,
+) => {
+  return [`/api/v1/auth/google/start`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGoogleAuthStartQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAuthStart>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: GetGoogleAuthStartParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAuthStart>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGoogleAuthStartQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAuthStart>>
+  > = ({ signal }) => getGoogleAuthStart(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAuthStart>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAuthStartQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAuthStart>>
+>;
+export type GetGoogleAuthStartQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Generate Google OAuth authorization URL
+ */
+
+export function useGetGoogleAuthStart<
+  TData = Awaited<ReturnType<typeof getGoogleAuthStart>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: GetGoogleAuthStartParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAuthStart>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAuthStartQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Exchange Google OAuth code for API JWT tokens
+ */
+export const getExchangeGoogleAuthCodeUrl = () => {
+  return `/api/v1/auth/google/exchange`;
+};
+
+export const exchangeGoogleAuthCode = async (
+  googleAuthExchangeRequest: GoogleAuthExchangeRequest,
+  options?: RequestInit,
+): Promise<AuthTokenExchangeResponse> => {
+  return customFetch<AuthTokenExchangeResponse>(
+    getExchangeGoogleAuthCodeUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(googleAuthExchangeRequest),
+    },
+  );
+};
+
+export const getExchangeGoogleAuthCodeMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    TError,
+    { data: BodyType<GoogleAuthExchangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+  TError,
+  { data: BodyType<GoogleAuthExchangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["exchangeGoogleAuthCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    { data: BodyType<GoogleAuthExchangeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return exchangeGoogleAuthCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExchangeGoogleAuthCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>
+>;
+export type ExchangeGoogleAuthCodeMutationBody =
+  BodyType<GoogleAuthExchangeRequest>;
+export type ExchangeGoogleAuthCodeMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Exchange Google OAuth code for API JWT tokens
+ */
+export const useExchangeGoogleAuthCode = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    TError,
+    { data: BodyType<GoogleAuthExchangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+  TError,
+  { data: BodyType<GoogleAuthExchangeRequest> },
+  TContext
+> => {
+  return useMutation(getExchangeGoogleAuthCodeMutationOptions(options));
+};
+
+/**
+ * @summary Refresh JWT access token with refresh token
+ */
+export const getRefreshAuthTokenUrl = () => {
+  return `/api/v1/auth/refresh`;
+};
+
+export const refreshAuthToken = async (
+  authRefreshRequest?: AuthRefreshRequest,
+  options?: RequestInit,
+): Promise<AuthTokenExchangeResponse> => {
+  return customFetch<AuthTokenExchangeResponse>(getRefreshAuthTokenUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(authRefreshRequest),
+  });
+};
+
+export const getRefreshAuthTokenMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    TError,
+    { data: BodyType<AuthRefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshAuthToken>>,
+  TError,
+  { data: BodyType<AuthRefreshRequest> },
+  TContext
+> => {
+  const mutationKey = ["refreshAuthToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    { data: BodyType<AuthRefreshRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return refreshAuthToken(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshAuthTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshAuthToken>>
+>;
+export type RefreshAuthTokenMutationBody = BodyType<AuthRefreshRequest>;
+export type RefreshAuthTokenMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Refresh JWT access token with refresh token
+ */
+export const useRefreshAuthToken = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    TError,
+    { data: BodyType<AuthRefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshAuthToken>>,
+  TError,
+  { data: BodyType<AuthRefreshRequest> },
+  TContext
+> => {
+  return useMutation(getRefreshAuthTokenMutationOptions(options));
+};
 
 /**
  * @summary Start the browser OIDC login flow
@@ -4990,6 +5273,93 @@ export const useRunOutboundPilot = <
   TContext
 > => {
   return useMutation(getRunOutboundPilotMutationOptions(options));
+};
+
+/**
+ * Automates IMPORT -> ENRICH -> VERIFY -> PERSONALIZE -> LAUNCH
+ * @summary End to end sequence of outbound operations in a single background job
+ */
+export const getRunAllOutboundPipelineUrl = () => {
+  return `/api/v1/outbound/jobs/run-all`;
+};
+
+export const runAllOutboundPipeline = async (
+  outboundRunAllBody: OutboundRunAllBody,
+  options?: RequestInit,
+): Promise<JobQueuedResult> => {
+  return customFetch<JobQueuedResult>(getRunAllOutboundPipelineUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundRunAllBody),
+  });
+};
+
+export const getRunAllOutboundPipelineMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    TError,
+    { data: BodyType<OutboundRunAllBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+  TError,
+  { data: BodyType<OutboundRunAllBody> },
+  TContext
+> => {
+  const mutationKey = ["runAllOutboundPipeline"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    { data: BodyType<OutboundRunAllBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runAllOutboundPipeline(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunAllOutboundPipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>
+>;
+export type RunAllOutboundPipelineMutationBody = BodyType<OutboundRunAllBody>;
+export type RunAllOutboundPipelineMutationError = ErrorType<unknown>;
+
+/**
+ * @summary End to end sequence of outbound operations in a single background job
+ */
+export const useRunAllOutboundPipeline = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    TError,
+    { data: BodyType<OutboundRunAllBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+  TError,
+  { data: BodyType<OutboundRunAllBody> },
+  TContext
+> => {
+  return useMutation(getRunAllOutboundPipelineMutationOptions(options));
 };
 
 /**

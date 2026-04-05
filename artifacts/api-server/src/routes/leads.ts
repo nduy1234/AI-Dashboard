@@ -14,6 +14,7 @@ import {
   VerifyLeadEmailsResponse,
 } from "@workspace/api-zod";
 import { getOwnerContext, ownerScope } from "../security/ownerContext";
+import { outboundMcpTools } from "../lib/outboundIntegrations";
 
 const router: IRouter = Router();
 
@@ -82,14 +83,45 @@ router.delete("/leads/:id", async (req, res): Promise<void> => {
 });
 
 router.post("/leads/import", async (req, res): Promise<void> => {
-  const sampleLeads = [
-    { firstName: "Sarah", lastName: "Chen", email: "sarah.chen@techcorp.com", company: "TechCorp", title: "VP of Sales", source: "apollo", industry: "Technology", companySize: "200-500" },
-    { firstName: "Michael", lastName: "Rodriguez", email: "m.rodriguez@globalinc.com", company: "Global Inc", title: "CTO", source: "apollo", industry: "Finance", companySize: "500-1000" },
-    { firstName: "Emily", lastName: "Thompson", email: "emily.t@startuplab.io", company: "StartupLab", title: "Head of Growth", source: "apollo", industry: "SaaS", companySize: "50-200" },
-  ];
+  const source = typeof req.body.source === "string" ? req.body.source : "apollo";
+  
+  try {
+    const importedFromProvider = await outboundMcpTools.sourceImport(source, req.body);
+    
+    if (!importedFromProvider || importedFromProvider.length === 0) {
+      res.json(ImportLeadsResponse.parse({ imported: 0, duplicates: 0, total: 0 }));
+      return;
+    }
 
-  const inserted = await db.insert(leadsTable).values(sampleLeads.map(l => ({ ...l, userId: req.user!.id, orgId: req.orgId }))).returning();
-  res.json(ImportLeadsResponse.parse({ imported: inserted.length, duplicates: 0, total: inserted.length }));
+    const leadsToInsert = importedFromProvider
+      .filter((l: any) => l.email)
+      .map((l: any) => ({
+        firstName: String(l.firstName || "Unknown"),
+        lastName: String(l.lastName || "Unknown"),
+        email: String(l.email),
+        company: String(l.company || "Unknown"),
+        title: String(l.title || "Unknown"),
+        source,
+        status: "sourced",
+        industry: typeof l.industry === "string" ? l.industry : null,
+        companySize: typeof l.companySize === "string" ? l.companySize : null,
+        linkedinUrl: typeof l.linkedinUrl === "string" ? l.linkedinUrl : null,
+        userId: req.user!.id,
+        orgId: req.orgId
+      }));
+
+    if (leadsToInsert.length === 0) {
+      res.json(ImportLeadsResponse.parse({ imported: 0, duplicates: 0, total: 0 }));
+      return;
+    }
+
+    // Doing a simple ignore-on-conflict for duplicates based on email + userId constraint if there is one
+    // But simplified here to just insert what the provider gives us
+    const inserted = await db.insert(leadsTable).values(leadsToInsert).returning();
+    res.json(ImportLeadsResponse.parse({ imported: inserted.length, duplicates: 0, total: inserted.length }));
+  } catch (err: any) {
+    res.status(500).json({ error: err.message || "Import failed" });
+  }
 });
 
 router.post("/leads/verify", async (req, res): Promise<void> => {
@@ -99,7 +131,12 @@ router.post("/leads/verify", async (req, res): Promise<void> => {
   const ownerFilter = ownerScope(leadsTable, getOwnerContext(req));
   let verified = 0;
   for (const id of leadIds) {
-    const isValid = Math.random() > 0.15;
+    const [lead] = await db.select().from(leadsTable).where(and(eq(leadsTable.id, id), ownerFilter));
+    if (!lead) continue;
+
+    const result = await outboundMcpTools.verify("millionverifier", lead.email);
+    const isValid = result.result === "valid";
+
     const [updated] = await db.update(leadsTable)
       .set({ verified: isValid, status: isValid ? "verified" : "invalid" })
       .where(and(eq(leadsTable.id, id), ownerFilter))

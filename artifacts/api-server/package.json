@@ -4,8 +4,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx --env-file=../../.env ./src/index.ts",
-    "worker": "NODE_ENV=development tsx --env-file=../../.env ./src/worker.ts",
+    "dev": "NODE_ENV=development tsx --watch --env-file=../../.env ./src/index.ts",
+    "worker": "NODE_ENV=development tsx --watch --env-file=../../.env ./src/worker.ts",
     "build": "tsx ./build.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "seed:phase1.1": "NODE_ENV=development tsx --env-file=../../.env ./src/seedPhase11Operationalization.ts"
@@ -20,6 +20,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "groq-sdk": "^1.1.2",
     "ioredis": "^5.10.1",
     "jsonwebtoken": "^9.0.3",
     "openid-client": "^6.0.0",

@@ -1214,6 +1214,32 @@ paths:
               schema:
                 $ref: "#/components/schemas/OutboundPilotRunResult"
 
+  /outbound/jobs/run-all:
+    post:
+      operationId: runAllOutboundPipeline
+      tags: [outbound]
+      summary: End to end sequence of outbound operations in a single background job
+      description: Automates IMPORT -> ENRICH -> VERIFY -> PERSONALIZE -> LAUNCH
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundRunAllBody"
+      responses:
+        "202":
+          description: Orchestration queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueuedResult"
+
   /webhooks/sending/{provider}:
     post:
       operationId: ingestSendingWebhook
@@ -1299,11 +1325,41 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
+
+    OutboundRunAllBody:
+      type: object
+      required: [campaignId]
+      properties:
+        source:
+          type: string
+        campaignId:
+          type: integer
+        filters:
+          type: object
+          additionalProperties: true
+        enrichProvider:
+          type: string
+        verifyProvider:
+          type: string
+        personalizeProvider:
+          type: string
+        launchProvider:
+          type: string
+        dailyCap:
+          type: integer
+
+    JobQueuedResult:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: integer
+        status:
+          type: string
 
     AuthUser:
       type: object
@@ -2128,22 +2184,74 @@ components:
         notes:
           type: string
 
+    OutboundImportJobBodyImportType:
+      type: string
+      enum: [api, export, manual]
+      description: |
+        How leads are being supplied:
+        - `api` — pulled live from a provider API (e.g. Apollo)
+        - `export` — uploaded as a CSV / bulk list
+        - `manual` — inline `leads` array in the request body
+
+    ApolloSearchType:
+      type: string
+      enum:
+        - contacts_search
+        - organization_top_people
+        - organization_search
+        - organization_enrich
+      default: contacts_search
+      description: |
+        Which Apollo API endpoint to call. Only used when `source` is `apollo`.
+        All values below are confirmed to work on the free plan.
+
+        | Value | Apollo endpoint | Returns emails? | Best for |
+        |---|---|---|---|
+        | `contacts_search` | `api/v1/contacts/search` | Yes | Search your own saved Apollo contacts by keyword, title, company etc. |
+        | `organization_top_people` | `api/v1/mixed_people/organization_top_people` | Sometimes | Get key decision-makers from a specific company — pass `organization_id` in filters |
+        | `organization_search` | `api/v1/organizations/search` | No | Find companies matching industry, size, location etc. |
+        | `organization_enrich` | `api/v1/organizations/enrich` | No | Enrich a single company by domain — pass `domain` in filters |
+
+        **Recommended free-plan flow:**
+        1. `organization_search` → find matching companies, get Apollo org IDs
+        2. `organization_top_people` → get decision-makers per company (pass `organization_id`)
+        3. Run Clay Enrich job on the imported leads to get verified emails
+
     OutboundImportJobBody:
       type: object
       required: [source]
       properties:
         source:
           type: string
+          description: Provider to source leads from (e.g. `apollo`, `manual`, `csv`)
         importType:
-          type: string
-          enum: [api, export, manual]
+          $ref: "#/components/schemas/OutboundImportJobBodyImportType"
+        apolloSearchType:
+          $ref: "#/components/schemas/ApolloSearchType"
         leads:
           type: array
+          description: Inline lead list (used when importType is `manual`)
           items:
             $ref: "#/components/schemas/OutboundLeadInput"
         filters:
           type: object
           additionalProperties: true
+          description: |
+            Provider-specific search filters forwarded directly to the provider API.
+            For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+            `organization_industry_tag_ids`, `num_employees_ranges`, etc.
+          example:
+            person_titles: ["Founder", "CEO", "VP of Sales"]
+            person_locations: ["United States"]
+            num_employees_ranges: ["1,50", "51,200"]
+        page:
+          type: integer
+          default: 1
+          description: Page number for paginated provider results (Apollo supports up to 500 pages)
+        perPage:
+          type: integer
+          default: 25
+          description: Number of results per page (max 100 for Apollo)
         campaignId:
           type: integer
 

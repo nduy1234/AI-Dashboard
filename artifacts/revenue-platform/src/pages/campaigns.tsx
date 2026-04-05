@@ -39,12 +39,7 @@ export default function Campaigns() {
     }
   };
 
-  // Mock data if api is empty
-  const displayData = campaigns?.length ? campaigns : [
-    { id: 1, name: "Q3 Enterprise SaaS Outline", type: "outbound", status: "active", sentCount: 1250, openCount: 600, replyCount: 45, meetingsBooked: 12, createdAt: "2024-05-12T10:00:00Z" },
-    { id: 2, name: "Dormant Customers 2023", type: "reactivation", status: "paused", sentCount: 5000, openCount: 1200, replyCount: 150, meetingsBooked: 28, createdAt: "2024-04-01T10:00:00Z" },
-    { id: 3, name: "Series B Founders", type: "outbound", status: "draft", sentCount: 0, openCount: 0, replyCount: 0, meetingsBooked: 0, createdAt: "2024-05-20T10:00:00Z" },
-  ];
+  const displayData = campaigns || [];
 
   return (
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>

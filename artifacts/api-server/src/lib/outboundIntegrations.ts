@@ -76,6 +76,100 @@ function scoreEmailQuality(email: string): VerificationResult {
   return { result: "valid", reason: "Heuristic validation passed" };
 }
 
+// All endpoints confirmed available on Apollo free plan
+type ApolloSearchType =
+  | "contacts_search"
+  | "organization_top_people"
+  | "organization_search"
+  | "organization_enrich";
+
+interface ApolloSearchConfig {
+  endpoint: string;
+  responseKey: string;
+  method: "GET" | "POST";
+  mapFn: (item: Record<string, unknown>) => Record<string, unknown>;
+  requiresEmail: boolean;
+}
+
+const APOLLO_SEARCH_CONFIG: Record<ApolloSearchType, ApolloSearchConfig> = {
+  // Search your own saved Apollo contacts — returns full data including emails
+  contacts_search: {
+    endpoint: "/api/v1/contacts/search",
+    responseKey: "contacts",
+    method: "POST",
+    requiresEmail: true,
+    mapFn: (contact) => ({
+      firstName: String(contact.first_name ?? "Unknown"),
+      lastName: String(contact.last_name ?? ""),
+      email: String(contact.email ?? ""),
+      company: String(contact.organization_name ?? contact.company ?? "Unknown"),
+      title: String(contact.title ?? "Unknown"),
+      linkedinUrl: typeof contact.linkedin_url === "string" ? contact.linkedin_url : undefined,
+      apolloId: String(contact.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Get key decision-makers from a specific company — pass organization_id in filters
+  // Use after organization_search to drill into a company's top people
+  organization_top_people: {
+    endpoint: "/api/v1/mixed_people/organization_top_people",
+    responseKey: "people",
+    method: "GET",
+    requiresEmail: false,
+    mapFn: (person) => ({
+      firstName: String(person.first_name ?? "Unknown"),
+      lastName: String(person.last_name ?? person.last_name_obfuscated ?? ""),
+      email: String(person.email ?? ""),
+      company: String((person.organization as Record<string, unknown> | undefined)?.name ?? person.organization_name ?? "Unknown"),
+      title: String(person.title ?? "Unknown"),
+      linkedinUrl: typeof person.linkedin_url === "string" ? person.linkedin_url : undefined,
+      apolloId: String(person.id ?? ""),
+      hasEmail: Boolean(person.has_email),
+      source: "apollo",
+    }),
+  },
+  // Find companies matching filters — returns Apollo org IDs to feed into organization_top_people
+  organization_search: {
+    endpoint: "/api/v1/organizations/search",
+    responseKey: "organizations",
+    method: "POST",
+    requiresEmail: false,
+    mapFn: (org) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String(org.name ?? "Unknown"),
+      title: "",
+      industry: String(org.industry ?? ""),
+      companySize: String(org.num_employees ?? org.estimated_num_employees ?? ""),
+      linkedinUrl: typeof org.linkedin_url === "string" ? org.linkedin_url : undefined,
+      website: typeof org.website_url === "string" ? org.website_url : undefined,
+      apolloId: String(org.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Enrich a single company by domain — pass domain in filters e.g. { "domain": "stripe.com" }
+  organization_enrich: {
+    endpoint: "/api/v1/organizations/enrich",
+    responseKey: "organization",
+    method: "GET",
+    requiresEmail: false,
+    mapFn: (org) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String(org.name ?? "Unknown"),
+      title: "",
+      industry: String(org.industry ?? ""),
+      companySize: String(org.num_employees ?? org.estimated_num_employees ?? ""),
+      linkedinUrl: typeof org.linkedin_url === "string" ? org.linkedin_url : undefined,
+      website: typeof org.website_url === "string" ? org.website_url : undefined,
+      apolloId: String(org.id ?? ""),
+      source: "apollo",
+    }),
+  },
+};
+
 class ApolloAdapter implements OutboundProviderAdapter {
   async importLeads(payload: Record<string, unknown>): Promise<Array<Record<string, unknown>>> {
     const csvLeads = payload.leads;
@@ -86,33 +180,45 @@ class ApolloAdapter implements OutboundProviderAdapter {
     const apiKey = process.env.APOLLO_API_KEY;
     if (!apiKey) return [];
 
+    const searchType = (payload.apolloSearchType as ApolloSearchType | undefined) ?? "contacts_search";
+    const config = APOLLO_SEARCH_CONFIG[searchType] ?? APOLLO_SEARCH_CONFIG.contacts_search;
     const baseUrl = process.env.APOLLO_BASE_URL ?? "https://api.apollo.io";
-    const endpoint = process.env.APOLLO_IMPORT_ENDPOINT ?? "/v1/mixed_people/search";
-    const response = await requestJsonWithRetry<{ people?: Array<Record<string, unknown>> }>(
-      `${baseUrl}${endpoint}`,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": apiKey,
-        },
-        body: toJsonBody({
-          page: 1,
-          per_page: 25,
-          ...((payload.filters ?? {}) as Record<string, unknown>),
-        }),
-      },
-    );
+    const filters = (payload.filters ?? {}) as Record<string, unknown>;
 
-    return (response.people ?? []).map((person) => ({
-      firstName: String(person.first_name ?? person.firstName ?? "Unknown"),
-      lastName: String(person.last_name ?? person.lastName ?? "Unknown"),
-      email: String(person.email ?? ""),
-      company: String(person.organization_name ?? person.company ?? "Unknown"),
-      title: String(person.title ?? "Unknown"),
-      linkedinUrl: typeof person.linkedin_url === "string" ? person.linkedin_url : undefined,
-      source: "apollo",
-    })).filter((lead) => !!lead.email);
+    // GET endpoints (organization_top_people, organization_enrich) use query params, not a JSON body
+    let url = `${baseUrl}${config.endpoint}`;
+    let fetchInit: RequestInit;
+
+    if (config.method === "GET") {
+      const params = new URLSearchParams({ api_key: apiKey });
+      for (const [k, v] of Object.entries(filters)) {
+        if (v !== undefined && v !== null) params.set(k, String(v));
+      }
+      url = `${url}?${params.toString()}`;
+      fetchInit = { method: "GET", headers: { "Content-Type": "application/json" } };
+    } else {
+      fetchInit = {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+        body: toJsonBody({
+          page: Number(payload.page ?? 1),
+          per_page: Number(payload.perPage ?? 25),
+          ...filters,
+        }),
+      };
+    }
+
+    const response = await requestJsonWithRetry<Record<string, unknown>>(url, fetchInit);
+
+    const raw = response[config.responseKey];
+    const items: Array<Record<string, unknown>> = Array.isArray(raw)
+      ? raw
+      : raw !== null && raw !== undefined
+        ? [raw as Record<string, unknown>]
+        : [];
+
+    const mapped = items.map(config.mapFn);
+    return config.requiresEmail ? mapped.filter((lead) => !!lead.email) : mapped;
   }
 }
 
@@ -187,6 +293,12 @@ class MillionVerifierAdapter implements OutboundProviderAdapter {
       },
     );
 
+    // Fallback to heuristic if account has no credits
+    if (response.error === "Insufficient credits" || Number(response.credits) === 0) {
+      console.warn(`[millionverifier] no credits remaining — falling back to heuristic for ${email}`);
+      return scoreEmailQuality(email);
+    }
+
     const status = String(response.result ?? response.status ?? "").toLowerCase();
     if (["ok", "valid", "deliverable"].includes(status)) {
       return { result: "valid", reason: "MillionVerifier marked email valid" };
@@ -207,28 +319,39 @@ class ResendAdapter implements OutboundProviderAdapter {
   }): Promise<{ externalMessageId: string }> {
     const apiKey = process.env.RESEND_API_KEY;
     const fromEmail = process.env.RESEND_FROM_EMAIL ?? `noreply@${payload.fromDomain ?? "example.com"}`;
+
     if (!apiKey) {
+      console.warn("[resend] RESEND_API_KEY is not set — skipping real send, returning fake message ID");
       return { externalMessageId: randomUUID() };
     }
 
-    const response = await requestJsonWithRetry<{ id?: string }>(
-      "https://api.resend.com/emails",
-      {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${apiKey}`,
-        },
-        body: toJsonBody({
-          from: fromEmail,
-          to: [payload.to],
-          subject: payload.subject,
-          text: payload.body,
-        }),
-      },
-    );
+    console.log(`[resend] sending email to=${payload.to} from=${fromEmail} subject="${payload.subject}"`);
 
-    return { externalMessageId: response.id ?? randomUUID() };
+    try {
+      const response = await requestJsonWithRetry<{ id?: string; name?: string; message?: string }>(
+        "https://api.resend.com/emails",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${apiKey}`,
+          },
+          body: toJsonBody({
+            from: fromEmail,
+            to: [payload.to],
+            subject: payload.subject,
+            text: payload.body,
+          }),
+        },
+      );
+
+      const messageId = response.id ?? randomUUID();
+      console.log(`[resend] email sent successfully id=${messageId} to=${payload.to}`);
+      return { externalMessageId: messageId };
+    } catch (err) {
+      console.error(`[resend] failed to send email to=${payload.to}:`, err instanceof Error ? err.message : err);
+      throw err;
+    }
   }
 }
 
@@ -516,7 +639,10 @@ export const outboundMcpTools = {
       throw new Error(`Provider '${provider}' is disabled`);
     }
     const adapter = getOutboundAdapter(provider);
-    if (!adapter.sendMessage) return { externalMessageId: randomUUID() };
+    if (!adapter.sendMessage) {
+      console.warn(`[outbound] provider '${provider}' has no sendMessage implementation — returning fake message ID`);
+      return { externalMessageId: randomUUID() };
+    }
     return adapter.sendMessage(payload);
   },
 };

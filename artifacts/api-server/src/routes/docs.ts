@@ -1,13 +1,16 @@
 import path from "path";
-import { access, readFile } from "fs/promises";
+import { access, readFile, watch } from "fs/promises";
 import { Router, type IRouter, type RequestHandler } from "express";
 import * as swaggerUi from "swagger-ui-express";
 import { parse as parseYaml } from "yaml";
 
 const router: IRouter = Router();
 
+const isDev = process.env.NODE_ENV !== "production";
+
 let cachedSpecYaml: string | null = null;
 let cachedSpecJson: Record<string, unknown> | null = null;
+let resolvedSpecPath: string | null = null;
 
 function isDocsEnabled(): boolean {
   return process.env.SWAGGER_DOCS_ENABLED !== "false";
@@ -22,6 +25,8 @@ const ensureDocsEnabled: RequestHandler = (_req, res, next) => {
 };
 
 async function resolveOpenApiSpecPath(): Promise<string> {
+  if (resolvedSpecPath) return resolvedSpecPath;
+
   const relativeSpecPath = path.join("lib", "api-spec", "openapi.yaml");
   const candidates = [
     path.resolve(process.cwd(), relativeSpecPath),
@@ -31,6 +36,23 @@ async function resolveOpenApiSpecPath(): Promise<string> {
   for (const candidate of candidates) {
     try {
       await access(candidate);
+      resolvedSpecPath = candidate;
+
+      // In dev, watch the file and bust the cache when it changes.
+      if (isDev) {
+        (async () => {
+          try {
+            const watcher = watch(candidate);
+            for await (const _event of watcher) {
+              cachedSpecYaml = null;
+              cachedSpecJson = null;
+            }
+          } catch {
+            // Watcher errors are non-fatal.
+          }
+        })();
+      }
+
       return candidate;
     } catch {
       // Continue through candidates until one exists.
@@ -45,7 +67,8 @@ async function getOpenApiSpecYaml(): Promise<string> {
 
   const openApiSpecPath = await resolveOpenApiSpecPath();
   const specYaml = await readFile(openApiSpecPath, "utf-8");
-  cachedSpecYaml = specYaml;
+  // Only cache in production — dev always reads fresh from disk.
+  if (!isDev) cachedSpecYaml = specYaml;
   return specYaml;
 }
 
@@ -53,7 +76,7 @@ async function getOpenApiSpecJson(): Promise<Record<string, unknown>> {
   if (cachedSpecJson) return cachedSpecJson;
   const specYaml = await getOpenApiSpecYaml();
   const parsedSpec = parseYaml(specYaml) as Record<string, unknown>;
-  cachedSpecJson = parsedSpec;
+  if (!isDev) cachedSpecJson = parsedSpec;
   return parsedSpec;
 }
 
@@ -75,21 +98,15 @@ router.get("/openapi.json", ensureDocsEnabled, async (_req, res, next) => {
   }
 });
 
-router.use("/docs", ensureDocsEnabled, swaggerUi.serve);
-router.get("/docs", ensureDocsEnabled, async (req, res, next) => {
-  try {
-    const specJson = await getOpenApiSpecJson();
-    const openApiJsonUrl = `${req.baseUrl}/openapi.json`;
-    const swaggerHandler = swaggerUi.setup(specJson, {
-      explorer: true,
-      swaggerOptions: {
-        url: openApiJsonUrl,
-      },
-    });
-    swaggerHandler(req, res, next);
-  } catch (error) {
-    next(error);
-  }
+const swaggerUiHandler = swaggerUi.setup(undefined, {
+  explorer: true,
+  swaggerOptions: {
+    // Swagger UI fetches the spec from this URL on every page load — no stale baked-in snapshot.
+    url: "/api/v1/openapi.json",
+  },
 });
+
+router.use("/docs", ensureDocsEnabled, swaggerUi.serve);
+router.get("/docs", ensureDocsEnabled, swaggerUiHandler);
 
 export default router;

@@ -110,6 +110,7 @@ INSTANTLY_BASE_URL="https://api.instantly.ai"
 INSTANTLY_ENDPOINTS_JSON='{"createCampaign":"/api/v2/campaigns","addLeads":"/api/v2/leads/add","activateCampaignTemplate":"/api/v2/campaigns/{id}/activate"}'
 INSTANTLY_TIMEZONE="Etc/GMT"
 INSTANTLY_CAMPAIGN_TEMPLATE_JSON=""
+CALCOM_BOOKING_URL="https://cal.com/your-handle/15min"
 SMARTLEAD_API_KEY="..."
 SMARTLEAD_SEND_URL="https://..."
 OUTBOUND_DISABLED_PROVIDERS="clay,smartlead"

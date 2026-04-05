@@ -44,32 +44,18 @@ export default function Dashboard() {
 
   
   const displayStats = stats || {
-    totalProspects: 12450,
-    emailsSent: 45200,
-    replyRate: 4.2,
-    meetingsBooked: 142,
-    reactivatedLeads: 85,
-    websiteConversions: 312
+    totalProspects: 0,
+    emailsSent: 0,
+    replyRate: 0,
+    meetingsBooked: 0,
+    reactivatedLeads: 0,
+    websiteConversions: 0
   };
 
-  const mockChartData = [
-    { label: "Jan", value: 4000, value2: 2400 },
-    { label: "Feb", value: 3000, value2: 1398 },
-    { label: "Mar", value: 2000, value2: 9800 },
-    { label: "Apr", value: 2780, value2: 3908 },
-    { label: "May", value: 1890, value2: 4800 },
-    { label: "Jun", value: 2390, value2: 3800 },
-  ];
-
   const displayCharts = charts || {
-    outboundPerformance: mockChartData,
-    pipelineGenerated: mockChartData,
-    conversionFunnel: [
-      { stage: "Visitors", count: 5000 },
-      { stage: "Chat Engaged", count: 1200 },
-      { stage: "Qualified", count: 400 },
-      { stage: "Meetings", count: 85 }
-    ]
+    outboundPerformance: [],
+    pipelineGenerated: [],
+    conversionFunnel: []
   };
 
   return (

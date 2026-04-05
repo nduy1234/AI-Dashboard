@@ -54,7 +54,9 @@ export function startOutboundWorker(): void {
   worker = new Worker<{ jobId: number }>(
     queueName,
     async (job) => {
+      console.log(`\x1b[36m[worker]\x1b[0m picking up jobId=${job.data.jobId}`);
       await processOutboundJobById(job.data.jobId);
+      console.log(`\x1b[32m[worker]\x1b[0m completed jobId=${job.data.jobId}`);
     },
     {
       connection: { url: redisUrl! },
@@ -63,10 +65,10 @@ export function startOutboundWorker(): void {
   );
 
   worker.on("failed", (job, error) => {
-    console.error(`Outbound worker failed job ${job?.id}:`, error);
+    console.error(`\x1b[31m[worker]\x1b[0m failed jobId=${job?.data.jobId}: ${error.message}`);
   });
   worker.on("error", (error) => {
-    console.error("Outbound worker connection error:", error.message);
+    console.error(`\x1b[31m[worker]\x1b[0m connection error: ${error.message}`);
   });
 }
 

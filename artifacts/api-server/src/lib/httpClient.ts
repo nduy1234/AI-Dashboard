@@ -6,7 +6,14 @@ export class HttpError extends Error {
   body: string;
 
   constructor(status: number, body: string) {
-    super(`HTTP ${status}`);
+    let extractedMessage = body;
+    try {
+      const parsed = JSON.parse(body);
+      if (parsed.error) extractedMessage = typeof parsed.error === 'string' ? parsed.error : JSON.stringify(parsed.error);
+      else if (parsed.message) extractedMessage = parsed.message;
+    } catch {}
+
+    super(`Provider HTTP ${status}: ${extractedMessage}`);
     this.status = status;
     this.body = body;
   }
