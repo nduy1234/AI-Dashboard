@@ -42,6 +42,37 @@ export async function processSendingWebhook(payload: {
     }
   });
 
+  // Record signal to campaign_signals table for agent learning loop
+  try {
+    // Convert the webhook event to agent webhook format
+    const agentWebhookEvent = {
+      type: payload.eventType,
+      data: {
+        ...payload.body,
+        id: payload.eventId,
+      },
+      headers: {
+        "x-campaign-id": payload.campaignId,
+        "x-lead-id": payload.leadId,
+      },
+    };
+    
+    // Call agent webhook handler to record signal (lazy import to avoid blocking if package not built yet)
+    try {
+      const mod = await import("../../../lib/agent-orchestration/dist/index.js" as any);
+      if (mod.handleProviderWebhook) {
+        await mod.handleProviderWebhook(payload.provider, agentWebhookEvent);
+        console.log(`[WebhookService] Recorded signal for agent learning: ${payload.eventType} from ${payload.provider}`);
+      }
+    } catch (importErr) {
+      // Agent orchestration not available, just log and continue
+      console.warn(`[WebhookService] Agent orchestration not available for signal recording (${importErr instanceof Error ? importErr.message : String(importErr)})`);
+    }
+  } catch (error) {
+    console.warn(`[WebhookService] Failed to record signal for agent learning:`, error instanceof Error ? error.message : error);
+    // Don't block webhook processing if agent signal recording fails
+  }
+
   // Fire Slack notifications for high-value events (non-blocking)
   if (payload.leadId && payload.campaignId) {
     if (payload.eventType === "positive_reply" || payload.eventType === "meeting_booked") {

@@ -18,7 +18,19 @@ if (Number.isNaN(port) || port <= 0) {
 }
 
 app.listen(port, async () => {
-  console.log(`Server listening on port ${port}`);
+  console.log(`\x1b[36m[Server]\x1b[0m Listening on port ${port}`);
+  
+  // Initialize MCP client for agent control plane (lazy load)
+  try {
+    const mod = await import("../../../lib/agent-orchestration/dist/index.js" as any);
+    if (mod.initializeMcpOnStartup) {
+      await mod.initializeMcpOnStartup();
+    }
+  } catch (err) {
+    console.warn(`\x1b[33m[Server]\x1b[0m MCP initialization failed:`, err instanceof Error ? err.message : String(err));
+    console.log(`\x1b[33m[Server]\x1b[0m Continuing without MCP - agents will run without controls`);
+  }
+  
   startOutboundWorker();
   try {
     await seedDatabase();
