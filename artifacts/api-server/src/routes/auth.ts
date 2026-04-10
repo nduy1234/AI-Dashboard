@@ -28,7 +28,7 @@ import { upsertUserFromClaims } from "../repositories/userRepository";
 import { onboardUserAfterLogin } from "../services/onboardingService";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
-const REFRESH_COOKIE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const REFRESH_COOKIE_TTL_MS = 100 * 365 * 24 * 60 * 60 * 1000; // 100 years
 
 const router: IRouter = Router();
 

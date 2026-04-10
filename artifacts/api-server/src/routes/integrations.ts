@@ -10,6 +10,7 @@ import {
 import { getOwnerContext, ownerScope } from "../security/ownerContext";
 import { testSlackConnection } from "../lib/slackClient";
 import { testCalcomConnection } from "../lib/calcomClient";
+import { loadApolloEndpointsConfig } from "@workspace/agent-orchestration";
 
 const router: IRouter = Router();
 
@@ -22,6 +23,26 @@ router.get("/integrations", async (req, res): Promise<void> => {
     .where(ownerFilter(req))
     .orderBy(integrationsTable.name);
   res.json(ListIntegrationsResponse.parse(integrations));
+});
+
+/**
+ * GET /api/v1/integrations/apollo/endpoints
+ * Returns the allowed Apollo API paths from lib/agent-orchestration/config/apollo-endpoints.json
+ * (no API keys). Edit that file to match your Apollo plan.
+ */
+router.get("/integrations/apollo/endpoints", async (req, res): Promise<void> => {
+  const owner = getOwnerContext(req);
+  if (!owner) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  try {
+    res.json(loadApolloEndpointsConfig());
+  } catch (e) {
+    res.status(500).json({
+      error: e instanceof Error ? e.message : "Failed to load Apollo endpoints config",
+    });
+  }
 });
 
 router.patch("/integrations/:id", async (req, res): Promise<void> => {

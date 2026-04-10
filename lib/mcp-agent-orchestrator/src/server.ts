@@ -220,11 +220,23 @@ async function main() {
 }
 
 // Start server if run directly
-if (import.meta.url === `file://${process.argv[1]}`) {
-  main().catch((err) => {
-    console.error("[MCP Server] Fatal error:", err);
-    process.exit(1);
-  });
+// Handle both ESM and CJS module formats
+try {
+  // Try ESM approach
+  if (import.meta.url === `file://${process.argv[1]}`) {
+    main().catch((err) => {
+      console.error("[MCP Server] Fatal error:", err);
+      process.exit(1);
+    });
+  }
+} catch {
+  // Fallback for CJS - use require.main check
+  if (typeof require !== "undefined" && require.main === module) {
+    main().catch((err) => {
+      console.error("[MCP Server] Fatal error:", err);
+      process.exit(1);
+    });
+  }
 }
 
 export { main };

@@ -19,7 +19,14 @@ export interface AgentConfig {
   userId: string;
   campaignId: number;
   agentId?: string; // Generated UUID
+  campaignName?: string;    // Used by agent to know what audience to source
+  campaignType?: string;    // e.g. "outbound", "reactivation"
+  campaignSubject?: string; // Email subject line context
   maxIterations: number;
+  /** Hard cap on LangGraph node visits (circuit breaker). Defaults in runOutboundAgent if omitted. */
+  maxGraphHops?: number;
+  /** Consecutive identical empty/error tool outcomes before pausing (default 2). */
+  maxStagnationRepeats?: number;
   temperature: 0.1 | 0.3 | 0.5; // Lower = more deterministic
   enableLearning: boolean;
   mcpServerUrl?: string; // Optional MCP connection override

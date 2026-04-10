@@ -1,5 +1,10 @@
 import app from "./app";
+import { setGlobalDispatcher, Agent } from "undici";
 import { seedDatabase } from "./seed";
+
+// Apply global workaround for Node.js native fetch IPv6 timeout issues 
+// by enforcing IPv4 resolution for all fetch API requests.
+setGlobalDispatcher(new Agent({ connect: { family: 4 } }));
 import { startOutboundWorker } from "./lib/outboundQueue";
 
 const isDev = process.env.NODE_ENV !== "production";
@@ -22,6 +27,7 @@ app.listen(port, async () => {
   
   // Initialize MCP client for agent control plane (lazy load)
   try {
+    console.log(`\x1b[36m[Agent]\x1b[0m Initializing MCP client for agent framework`);
     const mod = await import("../../../lib/agent-orchestration/dist/index.js" as any);
     if (mod.initializeMcpOnStartup) {
       await mod.initializeMcpOnStartup();

@@ -76,17 +76,26 @@ function scoreEmailQuality(email: string): VerificationResult {
   return { result: "valid", reason: "Heuristic validation passed" };
 }
 
-// All endpoints confirmed available on Apollo free plan
+// Apollo API endpoint types (https://docs.apollo.io/reference/authentication)
 type ApolloSearchType =
   | "contacts_search"
   | "organization_top_people"
   | "organization_search"
-  | "organization_enrich";
+  | "organization_enrich"
+  | "people_enrichment"
+  | "people_bulk_enrichment"
+  | "organization_bulk_enrich"
+  | "news_search"
+  | "deals_search"
+  | "tasks_search"
+  | "calls_search"
+  | "sequences_search"
+  | "outreach_emails_search";
 
 interface ApolloSearchConfig {
   endpoint: string;
   responseKey: string;
-  method: "GET" | "POST";
+  method: "GET" | "POST" | "PATCH" | "PUT";
   mapFn: (item: Record<string, unknown>) => Record<string, unknown>;
   requiresEmail: boolean;
 }
@@ -114,7 +123,7 @@ const APOLLO_SEARCH_CONFIG: Record<ApolloSearchType, ApolloSearchConfig> = {
   organization_top_people: {
     endpoint: "/api/v1/mixed_people/organization_top_people",
     responseKey: "people",
-    method: "GET",
+    method: "POST",
     requiresEmail: false,
     mapFn: (person) => ({
       firstName: String(person.first_name ?? "Unknown"),
@@ -168,6 +177,156 @@ const APOLLO_SEARCH_CONFIG: Record<ApolloSearchType, ApolloSearchConfig> = {
       source: "apollo",
     }),
   },
+  // Enrich a single person by email
+  people_enrichment: {
+    endpoint: "/api/v1/people/enrichment",
+    responseKey: "person",
+    method: "POST",
+    requiresEmail: true,
+    mapFn: (person) => ({
+      firstName: String(person.first_name ?? "Unknown"),
+      lastName: String(person.last_name ?? ""),
+      email: String(person.email ?? ""),
+      company: String(person.organization_name ?? "Unknown"),
+      title: String(person.title ?? "Unknown"),
+      linkedinUrl: typeof person.linkedin_url === "string" ? person.linkedin_url : undefined,
+      apolloId: String(person.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Bulk enrich multiple people by email
+  people_bulk_enrichment: {
+    endpoint: "/api/v1/people/bulk_enrichment",
+    responseKey: "enrichment_details",
+    method: "POST",
+    requiresEmail: true,
+    mapFn: (person) => ({
+      firstName: String(person.first_name ?? "Unknown"),
+      lastName: String(person.last_name ?? ""),
+      email: String(person.email ?? ""),
+      company: String(person.organization_name ?? "Unknown"),
+      title: String(person.title ?? "Unknown"),
+      linkedinUrl: typeof person.linkedin_url === "string" ? person.linkedin_url : undefined,
+      apolloId: String(person.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Bulk enrich multiple organizations
+  organization_bulk_enrich: {
+    endpoint: "/api/v1/organizations/bulk_enrich",
+    responseKey: "enrichment_details",
+    method: "POST",
+    requiresEmail: false,
+    mapFn: (org) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String(org.name ?? "Unknown"),
+      title: "",
+      industry: String(org.industry ?? ""),
+      companySize: String(org.num_employees ?? org.estimated_num_employees ?? ""),
+      linkedinUrl: typeof org.linkedin_url === "string" ? org.linkedin_url : undefined,
+      website: typeof org.website_url === "string" ? org.website_url : undefined,
+      apolloId: String(org.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Search for news articles about companies
+  news_search: {
+    endpoint: "/api/v1/news/search",
+    responseKey: "news_articles",
+    method: "POST",
+    requiresEmail: false,
+    mapFn: (article) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String((article.organization as Record<string, unknown> | undefined)?.name ?? "Unknown"),
+      title: String(article.headline ?? article.title ?? "Unknown"),
+      linkedinUrl: typeof article.url === "string" ? article.url : undefined,
+      source: "apollo",
+    }),
+  },
+  // Search for deals
+  deals_search: {
+    endpoint: "/api/v1/deals",
+    responseKey: "deals",
+    method: "GET",
+    requiresEmail: false,
+    mapFn: (deal) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String(deal.name ?? "Unknown"),
+      title: String(deal.stage ?? "Unknown"),
+      apolloId: String(deal.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Search for tasks
+  tasks_search: {
+    endpoint: "/api/v1/tasks/search",
+    responseKey: "tasks",
+    method: "POST",
+    requiresEmail: false,
+    mapFn: (task) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String(task.account_id ?? "Unknown"),
+      title: String(task.subject ?? task.title ?? "Unknown"),
+      apolloId: String(task.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Search for calls
+  calls_search: {
+    endpoint: "/api/v1/calls/search",
+    responseKey: "calls",
+    method: "GET",
+    requiresEmail: false,
+    mapFn: (call) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: String((call.contact as Record<string, unknown> | undefined)?.name ?? "Unknown"),
+      title: String(call.note ?? "Unknown"),
+      apolloId: String(call.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Search for sequences
+  sequences_search: {
+    endpoint: "/api/v1/sequences/search",
+    responseKey: "sequences",
+    method: "POST",
+    requiresEmail: false,
+    mapFn: (seq) => ({
+      firstName: "",
+      lastName: "",
+      email: "",
+      company: "",
+      title: String(seq.name ?? "Unknown"),
+      apolloId: String(seq.id ?? ""),
+      source: "apollo",
+    }),
+  },
+  // Search for outreach emails
+  outreach_emails_search: {
+    endpoint: "/api/v1/outreach_emails/search",
+    responseKey: "outreach_emails",
+    method: "GET",
+    requiresEmail: false,
+    mapFn: (email) => ({
+      firstName: String((email.contact as Record<string, unknown> | undefined)?.first_name ?? "Unknown"),
+      lastName: String((email.contact as Record<string, unknown> | undefined)?.last_name ?? ""),
+      email: String(email.email ?? ""),
+      company: String((email.contact as Record<string, unknown> | undefined)?.organization_name ?? "Unknown"),
+      title: String((email.contact as Record<string, unknown> | undefined)?.title ?? "Unknown"),
+      apolloId: String(email.id ?? ""),
+      source: "apollo",
+    }),
+  },
 };
 
 class ApolloAdapter implements OutboundProviderAdapter {
@@ -185,21 +344,22 @@ class ApolloAdapter implements OutboundProviderAdapter {
     const baseUrl = process.env.APOLLO_BASE_URL ?? "https://api.apollo.io";
     const filters = (payload.filters ?? {}) as Record<string, unknown>;
 
-    // GET endpoints (organization_top_people, organization_enrich) use query params, not a JSON body
+    // GET endpoints use query params; other methods (POST, PATCH, PUT) use JSON body
     let url = `${baseUrl}${config.endpoint}`;
     let fetchInit: RequestInit;
 
     if (config.method === "GET") {
-      const params = new URLSearchParams({ api_key: apiKey });
+      const params = new URLSearchParams();
       for (const [k, v] of Object.entries(filters)) {
         if (v !== undefined && v !== null) params.set(k, String(v));
       }
       url = `${url}?${params.toString()}`;
-      fetchInit = { method: "GET", headers: { "Content-Type": "application/json" } };
+      fetchInit = { method: "GET", headers: { "Content-Type": "application/json", "X-Api-Key": apiKey } };
     } else {
+      // POST, PATCH, PUT all use JSON body
       fetchInit = {
-        method: "POST",
-        headers: { "Content-Type": "application/json", "x-api-key": apiKey },
+        method: config.method,
+        headers: { "Content-Type": "application/json", "X-Api-Key": apiKey },
         body: toJsonBody({
           page: Number(payload.page ?? 1),
           per_page: Number(payload.perPage ?? 25),

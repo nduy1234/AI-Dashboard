@@ -3,7 +3,16 @@
  * Main entry point for integrating LangChain-based agents
  */
 
-export { runOutboundAgent, cleanupMcpClient, initializeMcpOnStartup, isMcpReady, getMcpToolsForDispatcher } from "./agent.js";
+export {
+  runOutboundAgent,
+  cleanupMcpClient,
+  initializeMcpOnStartup,
+  isMcpReady,
+  getMcpToolsForDispatcher,
+  requestAgentPause,
+  clearAgentPause,
+  isAgentPauseRequested,
+} from "./agent.js";
 export { AgentMemory } from "./memory.js";
 export { executeAgentTool } from "./tools/index.js";
 export {
@@ -38,3 +47,16 @@ export type {
   AgentMemorySnapshot,
   AgentToolDefinition,
 } from "./types.js";
+
+export {
+  loadApolloEndpointsConfig,
+  getApolloSourceEndpoints,
+  getApolloPeopleSearchPaths,
+  clearApolloEndpointsConfigCache,
+} from "./loadApolloEndpoints.js";
+export type {
+  ApolloEndpointsFile,
+  ApolloEndpointEntry,
+  ApolloAllowedEndpoint,
+  ApolloSourceStrategy,
+} from "./loadApolloEndpoints.js";

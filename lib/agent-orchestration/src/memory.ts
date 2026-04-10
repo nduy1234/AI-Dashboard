@@ -21,6 +21,7 @@ import { eq, and, sql } from "drizzle-orm";
 export class AgentMemory {
   private campaignId: number;
   private agentId: string;
+  private orgId: number;
   private decisions: AgentDecision[] = [];
   private outcomes: Array<{
     decision: AgentDecision;
@@ -29,9 +30,10 @@ export class AgentMemory {
     timestamp: Date;
   }> = [];
 
-  constructor(campaignId: number, agentId: string) {
+  constructor(campaignId: number, agentId: string, orgId: number) {
     this.campaignId = campaignId;
     this.agentId = agentId;
+    this.orgId = orgId;
   }
 
   /**
@@ -47,6 +49,7 @@ export class AgentMemory {
         agentId: this.agentId,
         agentType: "outbound",
         campaignId: this.campaignId,
+        orgId: this.orgId,
         iteration: this.decisions.length - 1,
         action: decision.action,
         toolsTried: decision.toolsToTry,
@@ -81,7 +84,7 @@ export class AgentMemory {
       await db.insert(agentMemoryTable).values({
         agentType: "outbound",
         campaignId: this.campaignId,
-        orgId: 1, // Will be passed from config in real scenario
+        orgId: this.orgId,
         topic: "tool_performance",
         content: JSON.stringify({
           tool: result.tool,

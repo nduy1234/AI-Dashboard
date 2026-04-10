@@ -13,14 +13,14 @@
  * 8. Cost tracking and audit trail
  */
 
-import { runOutboundAgent, initializeMcpOnStartup, isMcpReady } from "./index.js";
+import { runOutboundAgent, initializeMcpOnStartup, isMcpReady } from "./src/index.js";
 import {
   persistAgentDecision,
   getAgentDecisions,
   getCampaignSignalsKpis,
   recordCampaignSignal,
-} from "./index.js";
-import type { AgentConfig, LeadBatch } from "./types.js";
+} from "./src/index.js";
+import type { AgentConfig, LeadBatch } from "./src/types.js";
 
 // ============================================================================
 // TEST CONFIGURATION

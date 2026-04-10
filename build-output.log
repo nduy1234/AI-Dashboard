@@ -1,0 +1,45 @@
+Scope: 12 of 13 workspace projects
+artifacts/api-server build$ tsx ./build.ts
+artifacts/mockup-sandbox build$ vite build
+artifacts/revenue-platform build$ vite build --config vite.config.ts
+lib/agent-orchestration build$ tsc -p tsconfig.json
+lib/mcp-agent-orchestrator build$ tsc -p tsconfig.json
+artifacts/api-server build: building server...
+artifacts/api-server build: ▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+artifacts/api-server build:     ../../lib/agent-orchestration/dist/loadApolloEndpoints.js:14:68:
+artifacts/api-server build:       14 │ ...Path(new URL("../config/apollo-endpoints.json", import.meta.url));
+artifacts/api-server build:          ╵                                                    ~~~~~~~~~~~
+artifacts/api-server build:   You need to set the output format to "esm" for "import.meta" to work correctly.
+artifacts/api-server build: ✘ [ERROR] Top-level await is currently not supported with the "cjs" output format
+artifacts/api-server build:     ../../lib/agent-orchestration/dist/tools/index.js:9:16:
+artifacts/api-server build:       9 │     const mod = await import("@workspace/integrations-openai-ai-ser...
+artifacts/api-server build:         ╵                 ~~~~~
+artifacts/revenue-platform build: vite v7.3.1 building client environment for production...
+artifacts/mockup-sandbox build: vite v7.3.1 building client environment for production...
+artifacts/api-server build: ▲ [WARNING] "import.meta" is not available with the "cjs" output format and will be empty [empty-import-meta]
+artifacts/api-server build:     ../../lib/mcp-agent-orchestrator/dist/server.js:209:4:
+artifacts/api-server build:       209 │ if (import.meta.url === `file://${process.argv[1]}`) {
+artifacts/api-server build:           ╵     ~~~~~~~~~~~
+artifacts/api-server build:   You need to set the output format to "esm" for "import.meta" to work correctly.
+artifacts/revenue-platform build: transforming...
+artifacts/mockup-sandbox build: transforming...
+artifacts/api-server build: 2 warnings and 1 error
+artifacts/api-server build: Error: Build failed with 1 error:
+artifacts/api-server build: ../../lib/agent-orchestration/dist/tools/index.js:9:16: ERROR: Top-level await is currently not supported with the "cjs" output format
+artifacts/api-server build:     at failureErrorWithLog (/home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:1467:15)
+artifacts/api-server build:     at /home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:926:25
+artifacts/api-server build:     at /home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:878:52
+artifacts/api-server build:     at buildResponseToResult (/home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:924:7)
+artifacts/api-server build:     at /home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:951:16
+artifacts/api-server build:     at responseCallbacks.<computed> (/home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:603:9)
+artifacts/api-server build:     at handleIncomingPacket (/home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:658:12)
+artifacts/api-server build:     at Socket.readFromStdout (/home/arslan/Documents/Remote/AI-Dashboard/node_modules/.pnpm/esbuild@0.27.3/node_modules/esbuild/lib/main.js:581:7)
+artifacts/api-server build:     at Socket.emit (node:events:508:28)
+artifacts/api-server build:     at addChunk (node:internal/streams/readable:563:12) {
+artifacts/api-server build:   errors: [Getter/Setter],
+artifacts/api-server build:   warnings: [Getter/Setter]
+artifacts/api-server build: }
+artifacts/api-server build: Failed
+/home/arslan/Documents/Remote/AI-Dashboard/artifacts/api-server:
+ ERR_PNPM_RECURSIVE_RUN_FIRST_FAIL  @workspace/api-server@0.0.0 build: `tsx ./build.ts`
+Exit status 1

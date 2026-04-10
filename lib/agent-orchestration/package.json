@@ -3,21 +3,24 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./dist/index.js"
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
   },
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "dev": "tsc -p tsconfig.json --watch",
-    "test:e2e": "node --loader tsx e2e-test.ts",
-    "test:mcp": "node --loader tsx mcp-integration-test.ts"
+    "test:e2e": "node --import tsx --env-file=../../.env e2e-test.ts",
+    "test:mcp": "node --import tsx --env-file=../../.env mcp-integration-test.ts"
   },
   "dependencies": {
-    "@langchain/anthropic": "^0.1.20",
-    "@langchain/core": "^0.1.52",
-    "@langchain/langgraph": "^0.0.30",
-    "@langchain/openai": "^0.0.34",
+    "@langchain/core": "^1.0.0",
+    "@langchain/groq": "^0.2.0",
+    "@langchain/langgraph": "^1.0.0",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "drizzle-orm": "catalog:",
@@ -25,6 +28,7 @@
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }
