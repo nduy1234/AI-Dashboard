@@ -15,6 +15,7 @@ import {
   leadsTable,
 } from "@workspace/db";
 import type { OwnerContext } from "./security/ownerContext.js";
+import { notifyCampaignCompleted } from "./lib/slackClient.js";
 
 // ─── Active-run registry ──────────────────────────────────────────────────────
 
@@ -217,6 +218,16 @@ export async function launchAgentForCampaign({
       });
 
       console.log(`[Agent] Agent ${agentId} finished with status: ${outcome.status}`);
+
+      notifyCampaignCompleted({
+        campaignName:    config.campaignName ?? `Campaign ${campaignId}`,
+        status:          outcome.status,
+        leadsSuccessful: outcome.leadsSuccessful,
+        leadsFailed:     outcome.leadsFailed,
+        totalCostUsd:    outcome.totalCostUsd,
+        iterations:      outcome.totalIterations,
+        errors:          outcome.errors,
+      });
     } catch (err) {
       const errMsg = err instanceof Error ? err.message : String(err);
 
@@ -247,6 +258,16 @@ export async function launchAgentForCampaign({
       });
 
       console.error(`[Agent] Agent ${agentId} failed:`, errMsg);
+
+      notifyCampaignCompleted({
+        campaignName:    `Campaign ${campaignId}`,
+        status:          "failed",
+        leadsSuccessful: 0,
+        leadsFailed:     0,
+        totalCostUsd:    0,
+        iterations:      0,
+        errors:          [errMsg],
+      });
     }
   })();
 

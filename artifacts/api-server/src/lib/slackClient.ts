@@ -222,3 +222,41 @@ export function notifyCampaignLaunched(campaignName: string, sentCount: number):
     ],
   });
 }
+
+export function notifyCampaignCompleted(params: {
+  campaignName: string;
+  status: "completed" | "paused" | "failed";
+  leadsSuccessful: number;
+  leadsFailed: number;
+  totalCostUsd: number;
+  iterations: number;
+  errors?: string[];
+}): void {
+  const { campaignName, status, leadsSuccessful, leadsFailed, totalCostUsd, iterations, errors } = params;
+
+  const icon   = status === "completed" ? "✅" : status === "paused" ? "⚠️" : "❌";
+  const label  = status === "completed" ? "Campaign Completed" : status === "paused" ? "Campaign Paused" : "Campaign Failed";
+  const emoji  = status === "completed" ? ":white_check_mark:" : status === "paused" ? ":warning:" : ":x:";
+
+  const statsLine = status !== "failed"
+    ? `*Sent:* ${leadsSuccessful}  |  *Failed:* ${leadsFailed}  |  *Cost:* $${totalCostUsd.toFixed(2)}  |  *Iterations:* ${iterations}`
+    : `*Error:* ${errors?.[0] ?? "Unknown error"}`;
+
+  sendSlackNotificationSilent({
+    text: `${emoji} Campaign *${campaignName}* ${status}`,
+    blocks: [
+      {
+        type: "header",
+        text: { type: "plain_text", text: `${icon} ${label}` },
+      },
+      {
+        type: "section",
+        text: {
+          type: "mrkdwn",
+          text: `*Campaign:* ${campaignName}\n${statsLine}`,
+        },
+      },
+      { type: "divider" },
+    ],
+  });
+}

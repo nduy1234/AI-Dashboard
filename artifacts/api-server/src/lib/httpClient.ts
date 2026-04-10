@@ -54,7 +54,13 @@ export async function requestJsonWithRetry<T>(
       }
 
       if (!bodyText) return {} as T;
-      return JSON.parse(bodyText) as T;
+      try {
+        return JSON.parse(bodyText) as T;
+      } catch {
+        // Some providers (e.g. Slack Incoming Webhooks) return plain-text "ok"
+        // on success rather than JSON.  Treat any non-JSON 2xx body as success.
+        return {} as T;
+      }
     } catch (error) {
       clearTimeout(timeout);
       lastError = error;

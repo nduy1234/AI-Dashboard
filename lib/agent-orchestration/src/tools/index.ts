@@ -741,6 +741,74 @@ async function claySearchContacts(
 
 // ─── Groq fallback for content generation ────────────────────────────────────
 
+/**
+ * Escape bare control characters (newlines, carriage returns, tabs) that appear
+ * inside JSON string values.  Groq frequently returns multi-line body text with
+ * real newlines rather than \\n escape sequences, producing invalid JSON.
+ *
+ * Walks the string one character at a time tracking quote/escape state so we
+ * only touch characters that are actually inside a string value.
+ */
+function escapeJsonStringValues(input: string): string {
+  let inString = false;
+  let escaped  = false;
+  let out      = "";
+
+  for (let i = 0; i < input.length; i++) {
+    const ch = input[i]!;
+
+    if (escaped) {
+      out     += ch;
+      escaped  = false;
+      continue;
+    }
+
+    if (ch === "\\") {
+      out     += ch;
+      escaped  = true;
+      continue;
+    }
+
+    if (ch === '"') {
+      inString = !inString;
+      out     += ch;
+      continue;
+    }
+
+    if (inString) {
+      if      (ch === "\n") { out += "\\n";  continue; }
+      else if (ch === "\r") { out += "\\r";  continue; }
+      else if (ch === "\t") { out += "\\t";  continue; }
+    }
+
+    out += ch;
+  }
+
+  return out;
+}
+
+/**
+ * Best-effort JSON extraction from a Groq response string.
+ * Handles: markdown fences, preamble/postamble prose, and multi-line
+ * string values with unescaped newlines.
+ */
+function extractGroqJson(raw: string): { subject: string; body: string } {
+  // 1. Strip markdown code fences
+  let text = raw.replace(/```json\n?|\n?```/g, "").trim();
+
+  // 2. Isolate the outermost JSON object (drops any surrounding prose)
+  const start = text.indexOf("{");
+  const end   = text.lastIndexOf("}");
+  if (start !== -1 && end > start) {
+    text = text.slice(start, end + 1);
+  }
+
+  // 3. Escape literal control characters inside string values
+  text = escapeJsonStringValues(text);
+
+  return JSON.parse(text);
+}
+
 async function groqGenerate(prompt: string): Promise<{ subject: string; body: string }> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new Error("GROQ_API_KEY is not configured");
@@ -758,10 +826,12 @@ async function groqGenerate(prompt: string): Promise<{ subject: string; body: st
       max_tokens: 300,
     }),
   });
+
   const raw = data.choices?.[0]?.message?.content ?? "{}";
   try {
-    return JSON.parse(raw.replace(/```json\n?|\n?```/g, "").trim());
+    return extractGroqJson(raw);
   } catch {
+    console.error(`\x1b[31m[Tool]\x1b[0m Groq raw response that failed to parse: ${raw.slice(0, 300)}`);
     throw new Error("Groq returned unparseable content");
   }
 }
