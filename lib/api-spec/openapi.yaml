@@ -4,8 +4,10 @@ info:
   version: 0.1.0
   description: Agentic AI Revenue Platform API
 servers:
+  - url: /api/v1
+    description: Versioned API v1 path (canonical)
   - url: /api
-    description: Base API path
+    description: Legacy unversioned path (backward compatibility)
 tags:
   - name: health
     description: Health operations
