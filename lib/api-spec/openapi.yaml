@@ -1480,6 +1480,21 @@ components:
           type: integer
         websiteConversions:
           type: integer
+        trends:
+          type: object
+          properties:
+            totalProspects:
+              type: number
+            emailsSent:
+              type: number
+            replyRate:
+              type: number
+            meetingsBooked:
+              type: number
+            reactivatedLeads:
+              type: number
+            websiteConversions:
+              type: number
 
     DashboardCharts:
       type: object

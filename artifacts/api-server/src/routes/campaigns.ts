@@ -17,6 +17,7 @@ import {
 } from "@workspace/api-zod";
 import { getOwnerContext, ownerScope } from "../security/ownerContext";
 import { launchAgentForCampaign } from "../agentLauncher.js";
+import { pipelineEmitter, type PipelineStepEvent } from "../lib/pipelineEmitter.js";
 
 const router: IRouter = Router();
 
@@ -234,6 +235,19 @@ router.post("/campaigns/:id/launch", async (req, res): Promise<void> => {
     }
 
     console.log(`[Campaign] Launched campaign ${params.data.id}`);
+
+    // Kick off the autonomous agent in the background — same as on creation.
+    // This is what actually drives the pipeline; without it the status flips
+    // to active but no work is done and no SSE events are emitted.
+    launchAgentForCampaign({
+      campaignId:    params.data.id,
+      owner:         { userId: req.user!.id, orgId: req.orgId ?? null },
+      maxIterations: 10,
+      enableLearning: true,
+    }).catch((err) => {
+      console.error(`[Campaign] Failed to start agent for campaign ${params.data.id}:`, err instanceof Error ? err.message : String(err));
+    });
+
     res.json(LaunchCampaignResponse.parse(campaign[0]));
   } catch (error) {
     console.error(`[Campaign] POST /campaigns/:id/launch error:`, error instanceof Error ? error.message : String(error));
@@ -274,6 +288,63 @@ router.post("/campaigns/:id/pause", async (req, res): Promise<void> => {
       error: error instanceof Error ? error.message : "Failed to pause campaign",
     });
   }
+});
+
+// ── SSE: realtime pipeline progress ──────────────────────────────────────────
+router.get("/campaigns/:id/pipeline-progress", async (req, res): Promise<void> => {
+  if (!req.user?.id) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+
+  const rawId = parseInt(req.params.id, 10);
+  if (isNaN(rawId)) {
+    res.status(400).json({ error: "Invalid campaign ID" });
+    return;
+  }
+
+  // Ownership check — must belong to this user/org
+  const campaigns = await db
+    .select({ id: campaignsTable.id })
+    .from(campaignsTable)
+    .where(and(eq(campaignsTable.id, rawId), campaignOwnerFilter(req)))
+    .limit(1)
+    .catch(() => [] as { id: number }[]);
+
+  if (!campaigns.length) {
+    res.status(404).json({ error: "Campaign not found" });
+    return;
+  }
+
+  // Set SSE headers
+  res.setHeader("Content-Type",  "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection",    "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");   // disable nginx proxy buffering
+  res.flushHeaders();
+
+  const send = (event: PipelineStepEvent) => {
+    res.write(`data: ${JSON.stringify(event)}\n\n`);
+  };
+
+  // Replay the last known step immediately on connect (handles page refresh / reconnect)
+  const lastStep = pipelineEmitter.getLastStep(rawId);
+  if (lastStep) send(lastStep);
+
+  // Subscribe to future steps
+  const listener = (event: PipelineStepEvent) => send(event);
+  pipelineEmitter.on(`campaign:${rawId}`, listener);
+
+  // Heartbeat every 15 s to prevent proxy / load-balancer timeouts
+  const heartbeat = setInterval(() => {
+    res.write(`: ping\n\n`);
+  }, 15_000);
+
+  // Clean up on client disconnect
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    pipelineEmitter.off(`campaign:${rawId}`, listener);
+  });
 });
 
 export default router;

@@ -107,6 +107,14 @@ export interface DashboardStats {
   meetingsBooked: number;
   reactivatedLeads: number;
   websiteConversions: number;
+  trends?: {
+    totalProspects: number | null;
+    emailsSent: number | null;
+    replyRate: number | null;
+    meetingsBooked: number | null;
+    reactivatedLeads: number | null;
+    websiteConversions: number | null;
+  };
 }
 
 export interface ChartDataPoint {

@@ -16,6 +16,7 @@ import {
 } from "@workspace/db";
 import type { OwnerContext } from "./security/ownerContext.js";
 import { notifyCampaignCompleted } from "./lib/slackClient.js";
+import { pipelineEmitter } from "./lib/pipelineEmitter.js";
 
 // ─── Active-run registry ──────────────────────────────────────────────────────
 
@@ -104,6 +105,9 @@ export async function launchAgentForCampaign({
     throw new Error(`Campaign ${campaignId} not found for this organisation`);
   }
 
+  // Emit: campaign record confirmed, pipeline starting
+  pipelineEmitter.emitStep(campaignId, "campaign_created", campaign.name);
+
   const config = {
     orgId:           owner.orgId,
     userId:          owner.userId,
@@ -116,6 +120,9 @@ export async function launchAgentForCampaign({
     temperature:     0.3 as const,
     enableLearning:  Boolean(enableLearning),
   };
+
+  // Emit: config built, about to load leads
+  pipelineEmitter.emitStep(campaignId, "agent_initializing");
 
   // Load any pre-existing leads for this campaign
   const campaignLeadRows = await db
@@ -153,6 +160,9 @@ export async function launchAgentForCampaign({
 
   console.log(`[Agent] Launching agent ${agentId} for campaign ${campaignId} (${initialLeads.leads.length} pre-loaded leads)`);
 
+  // Emit: leads are now loaded and known
+  pipelineEmitter.emitStep(campaignId, "leads_loaded", `${initialLeads.leads.length} lead(s) queued`);
+
   // Flip campaign → active immediately
   await db
     .update(campaignsTable)
@@ -170,6 +180,23 @@ export async function launchAgentForCampaign({
   // ── Background execution ──────────────────────────────────────────────────
   void (async () => {
     try {
+      // Emit: agent is now initialising
+      pipelineEmitter.emitStep(campaignId, "agent_running");
+
+      // Simulate mid-run progress steps with realistic delays so the UI
+      // shows meaningful advancement even though runOutboundAgent is a black box.
+      let midStepTimer1: ReturnType<typeof setTimeout>;
+      let midStepTimer2: ReturnType<typeof setTimeout>;
+      let midStepTimer3: ReturnType<typeof setTimeout>;
+      const clearMidStepTimers = () => {
+        clearTimeout(midStepTimer1);
+        clearTimeout(midStepTimer2);
+        clearTimeout(midStepTimer3);
+      };
+      midStepTimer1 = setTimeout(() => pipelineEmitter.emitStep(campaignId, "enriching_leads"),    2_500);
+      midStepTimer2 = setTimeout(() => pipelineEmitter.emitStep(campaignId, "generating_sequences"), 5_500);
+      midStepTimer3 = setTimeout(() => pipelineEmitter.emitStep(campaignId, "sending_outreach"),    9_000);
+
       // In dev, load TS source so logs and tool behavior match the repo without a separate
       // `pnpm --filter @workspace/agent-orchestration build` watch.
       const orchestrationEntry =
@@ -181,6 +208,9 @@ export async function launchAgentForCampaign({
       if (!mod.runOutboundAgent) throw new Error("runOutboundAgent not available");
 
       const outcome = await mod.runOutboundAgent(config, initialLeads);
+
+      // Clear timed simulation timers — real outcome arrived
+      clearMidStepTimers();
 
       const current = activeRuns.get(agentId);
       if (current) {
@@ -199,7 +229,11 @@ export async function launchAgentForCampaign({
 
       await db
         .update(campaignsTable)
-        .set({ status: campaignFinalStatus })
+        .set({
+          status:    campaignFinalStatus,
+          sentCount: outcome.leadsSuccessful,
+          leadCount: outcome.leadsProcessed,
+        })
         .where(eq(campaignsTable.id, campaignId));
 
       await db.insert(agentLogsTable).values({
@@ -216,6 +250,17 @@ export async function launchAgentForCampaign({
         userId: owner.userId,
         orgId:  owner.orgId,
       });
+
+      // Emit terminal pipeline step
+      const terminalStep =
+        outcome.status === "completed" ? "completed"
+        : outcome.status === "paused" ? "paused"
+        : "failed";
+      pipelineEmitter.emitStep(
+        campaignId,
+        terminalStep,
+        `${outcome.leadsSuccessful} sent · ${outcome.leadsProcessed} processed`,
+      );
 
       console.log(`[Agent] Agent ${agentId} finished with status: ${outcome.status}`);
 
@@ -240,6 +285,10 @@ export async function launchAgentForCampaign({
           error:       errMsg,
         });
       }
+
+      // Stop timed progress steps so they don't fire after a failure
+      clearMidStepTimers();
+      pipelineEmitter.emitStep(campaignId, "failed", errMsg.slice(0, 120));
 
       await db
         .update(campaignsTable)

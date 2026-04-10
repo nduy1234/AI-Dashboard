@@ -144,6 +144,15 @@ export const LogoutMobileSessionResponse = zod.object({
 /**
  * @summary Get dashboard overview stats
  */
+const _TrendFields = zod.object({
+  totalProspects: zod.number().nullable(),
+  emailsSent: zod.number().nullable(),
+  replyRate: zod.number().nullable(),
+  meetingsBooked: zod.number().nullable(),
+  reactivatedLeads: zod.number().nullable(),
+  websiteConversions: zod.number().nullable(),
+});
+
 export const GetDashboardStatsResponse = zod.object({
   totalProspects: zod.number(),
   emailsSent: zod.number(),
@@ -151,6 +160,7 @@ export const GetDashboardStatsResponse = zod.object({
   meetingsBooked: zod.number(),
   reactivatedLeads: zod.number(),
   websiteConversions: zod.number(),
+  trends: _TrendFields.optional(),
 });
 
 /**

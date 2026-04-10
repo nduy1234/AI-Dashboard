@@ -9,6 +9,7 @@ import {
   agentDecisionsTable,
   agentMemoryTable,
   campaignSignalsTable,
+  campaignsTable,
 } from "@workspace/db";
 import { eq, and, count, sql } from "drizzle-orm";
 import type { AgentDecision, ToolExecutionResult } from "./types.js";
@@ -130,6 +131,30 @@ export async function recordCampaignSignal(
       metadata,
       value: 1,
     });
+
+    // Increment the denormalized counter on the campaign row so the
+    // campaigns list and dashboard stats stay accurate without a join.
+    if (signalType === "open") {
+      await db
+        .update(campaignsTable)
+        .set({ openCount: sql`open_count + 1` })
+        .where(eq(campaignsTable.id, campaignId))
+        .catch(() => { /* non-fatal */ });
+    } else if (signalType === "reply") {
+      await db
+        .update(campaignsTable)
+        .set({ replyCount: sql`reply_count + 1` })
+        .where(eq(campaignsTable.id, campaignId))
+        .catch(() => { /* non-fatal */ });
+    } else if (signalType === "positive_reply") {
+      // positive_reply is how cal.com bookings are recorded
+      await db
+        .update(campaignsTable)
+        .set({ meetingsBooked: sql`meetings_booked + 1` })
+        .where(eq(campaignsTable.id, campaignId))
+        .catch(() => { /* non-fatal */ });
+    }
+
     console.log(`[Repository] Recorded signal: ${signalType} for campaign ${campaignId}`);
   } catch (error) {
     console.error("[Repository] Failed to record signal:", error);
