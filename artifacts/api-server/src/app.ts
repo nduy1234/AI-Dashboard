@@ -4,13 +4,31 @@ import cookieParser from "cookie-parser";
 import { authMiddleware } from "./middlewares/authMiddleware";
 import router from "./routes";
 
+// Augment Express Request to carry the raw body string needed for Svix
+// webhook signature verification (Resend inbound).
+declare global {
+  namespace Express {
+    interface Request {
+      rawBody?: string;
+    }
+  }
+}
+
 const app: Express = express();
 const API_VERSION_PREFIX = "/api/v1";
 const LEGACY_API_PREFIX = "/api";
 
 app.use(cors({ credentials: true, origin: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" }));
+// Capture raw body before JSON parsing — required for Svix (Resend) webhook verification.
+app.use(
+  express.json({
+    limit: "10mb",
+    verify: (req: Request, _res: Response, buf: Buffer) => {
+      req.rawBody = buf.toString("utf8");
+    },
+  }),
+);
 app.use(express.urlencoded({ extended: true }));
 
 // Request logger — prints method, path, status, and duration on every request

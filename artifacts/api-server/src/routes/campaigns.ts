@@ -18,6 +18,7 @@ import {
 import { getOwnerContext, ownerScope } from "../security/ownerContext";
 import { launchAgentForCampaign } from "../agentLauncher.js";
 import { pipelineEmitter, type PipelineStepEvent } from "../lib/pipelineEmitter.js";
+import { listEmailReplies } from "../repositories/outboundRepository";
 
 const router: IRouter = Router();
 
@@ -345,6 +346,50 @@ router.get("/campaigns/:id/pipeline-progress", async (req, res): Promise<void> =
     clearInterval(heartbeat);
     pipelineEmitter.off(`campaign:${rawId}`, listener);
   });
+});
+
+/**
+ * GET /campaigns/:id/replies
+ * Returns all stored email replies (inbound responses) for a campaign.
+ * Optionally filter to a specific lead with ?leadId=<n>.
+ */
+router.get("/campaigns/:id/replies", async (req, res): Promise<void> => {
+  try {
+    if (!req.user?.id) {
+      res.status(401).json({ error: "Not authenticated" });
+      return;
+    }
+
+    const rawId = parseInt(req.params.id, 10);
+    if (isNaN(rawId)) {
+      res.status(400).json({ error: "Invalid campaign id" });
+      return;
+    }
+
+    // Verify the campaign belongs to this user / org
+    const [campaign] = await db
+      .select({ id: campaignsTable.id })
+      .from(campaignsTable)
+      .where(and(eq(campaignsTable.id, rawId), campaignOwnerFilter(req)));
+
+    if (!campaign) {
+      res.status(404).json({ error: "Campaign not found" });
+      return;
+    }
+
+    const leadId = req.query.leadId ? parseInt(String(req.query.leadId), 10) : undefined;
+    const limit  = req.query.limit  ? Math.min(parseInt(String(req.query.limit), 10), 200) : 50;
+
+    const replies = await listEmailReplies(
+      { campaignId: rawId, ...(leadId && !isNaN(leadId) ? { leadId } : {}) },
+      limit,
+    );
+
+    res.json({ replies });
+  } catch (error) {
+    console.error(`[Campaign] GET /campaigns/:id/replies error:`, error instanceof Error ? error.message : String(error));
+    res.status(500).json({ error: error instanceof Error ? error.message : "Failed to fetch replies" });
+  }
 });
 
 export default router;

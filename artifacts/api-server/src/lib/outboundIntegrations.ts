@@ -1,4 +1,5 @@
 import { createHmac, randomUUID } from "node:crypto";
+import { Webhook as SvixWebhook } from "svix";
 import { requestJsonWithRetry, toJsonBody } from "./httpClient";
 import { isOutboundProviderEnabled } from "./outboundConfig";
 
@@ -485,7 +486,8 @@ class ResendAdapter implements OutboundProviderAdapter {
       return { externalMessageId: randomUUID() };
     }
 
-    console.log(`[resend] sending email to=${payload.to} from=${fromEmail} subject="${payload.subject}"`);
+    const replyTo = process.env.RESEND_REPLY_TO ?? null;
+    console.log(`[resend] sending email to=${payload.to} from=${fromEmail} subject="${payload.subject}" reply_to=${replyTo ?? "(not set — replies will go to From address)"}`);
 
     try {
       const response = await requestJsonWithRetry<{ id?: string; name?: string; message?: string }>(
@@ -501,6 +503,7 @@ class ResendAdapter implements OutboundProviderAdapter {
             to: [payload.to],
             subject: payload.subject,
             text: payload.body,
+            ...(replyTo ? { reply_to: [replyTo] } : {}),
           }),
         },
       );
@@ -597,13 +600,40 @@ export function verifyWebhookSignature(rawBody: string, signature: string | unde
   return signature === expected || signature === `sha256=${expected}`;
 }
 
+/**
+ * Verify incoming webhook signatures per provider.
+ *
+ * Each Resend webhook registration has its own unique signing secret, so sending
+ * events and inbound (receiving) events use DIFFERENT secrets and DIFFERENT env vars:
+ *
+ *   WEBHOOK_SECRET_RESEND          — for POST /webhooks/sending/resend
+ *                                    (email.sent / email.opened / email.bounced)
+ *   WEBHOOK_SECRET_RESEND_INBOUND  — for POST /webhooks/inbound/resend
+ *                                    (email.received)
+ *
+ * Both use Svix signing (headers: svix-id, svix-timestamp, svix-signature).
+ * Instantly / Smartlead use HMAC-SHA256 with a custom header.
+ */
 export function verifyProviderWebhookSignature(provider: string, rawBody: string, headers: Record<string, string | undefined>): boolean {
+  // Convert provider key to env var: "resend_inbound" → "WEBHOOK_SECRET_RESEND_INBOUND"
   const envKey = `WEBHOOK_SECRET_${provider.toUpperCase()}`;
   const secret = process.env[envKey] ?? process.env.WEBHOOK_SECRET_DEFAULT ?? "dev-webhook-secret";
 
-  if (provider === "resend") {
-    const signature = headers["resend-signature"] ?? headers["x-resend-signature"] ?? headers["x-webhook-signature"];
-    return verifyWebhookSignature(rawBody, signature, secret);
+  // Both Resend sending and Resend inbound use Svix — but with separate secrets.
+  if (provider === "resend" || provider === "resend_inbound") {
+    // In dev (no real secret configured) skip verification to allow local testing.
+    if (secret === "dev-webhook-secret") return true;
+    try {
+      const wh = new SvixWebhook(secret);
+      wh.verify(rawBody, {
+        "svix-id":        headers["svix-id"] ?? "",
+        "svix-timestamp": headers["svix-timestamp"] ?? "",
+        "svix-signature": headers["svix-signature"] ?? "",
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   if (provider === "instantly") {
@@ -619,12 +649,62 @@ export function verifyProviderWebhookSignature(provider: string, rawBody: string
   return verifyWebhookSignature(rawBody, headers["x-webhook-signature"], secret);
 }
 
+/**
+ * Resend inbound email content returned by GET /emails/receiving/:emailId
+ * https://resend.com/docs/api-reference/emails/retrieve-received-email
+ */
+export type ResendReceivedEmail = {
+  id: string;
+  from: string;
+  to: string[];
+  subject: string | null;
+  html: string | null;
+  text: string | null;
+  message_id: string | null;
+  headers: Record<string, string> | null;
+  created_at: string;
+};
+
+/**
+ * Fetch the full content of a received email from Resend.
+ * Must be called after receiving an `email.received` webhook because the
+ * webhook payload contains ONLY metadata — no body, no headers.
+ */
+export async function fetchResendEmailContent(emailId: string): Promise<ResendReceivedEmail | null> {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey) {
+    console.warn("[Resend] RESEND_API_KEY not set — cannot fetch received email content");
+    return null;
+  }
+  try {
+    const response = await fetch(`https://api.resend.com/emails/receiving/${emailId}`, {
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+    });
+    if (!response.ok) {
+      console.warn(`[Resend] Failed to retrieve received email ${emailId}: ${response.status} ${response.statusText}`);
+      return null;
+    }
+    return (await response.json()) as ResendReceivedEmail;
+  } catch (err) {
+    console.warn(`[Resend] Error fetching received email ${emailId}:`, err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 export type NormalizedSendingEvent = {
   eventId: string;
   eventType: "sent" | "open" | "reply" | "positive_reply" | "bounce" | "meeting_booked" | "unknown";
   campaignId: number | null;
   leadId: number | null;
   payload: Record<string, unknown>;
+  /** Extracted reply content — only populated for reply / positive_reply events */
+  replyFromEmail?: string;
+  replySubject?: string;
+  replyText?: string;
+  replyHtml?: string;
 };
 
 export function normalizeSendingEvent(provider: string, body: Record<string, unknown>): NormalizedSendingEvent {
@@ -656,13 +736,36 @@ export function normalizeSendingEvent(provider: string, body: Record<string, unk
       ? body.id
       : `${provider}:${Date.now()}:${Math.random().toString(36).slice(2, 10)}`;
 
+  // Extract reply content fields (present for reply / positive_reply events).
+  // Field names differ by provider:
+  //   Instantly:  reply_text, from_email, subject
+  //   Smartlead:  reply_message_body, from_email, subject
+  //   Resend:     data.text / data.html, data.from, data.subject (inbound forwarding)
+  const replyFromEmail = stringField(body, ["from_email", "fromEmail", "from"]);
+  const replySubject   = stringField(body, ["subject", "email_subject"]);
+  const replyText      = stringField(body, ["reply_text", "reply_message_body", "emailBody", "text", "body"]);
+  const replyHtml      = stringField(body, ["reply_html", "html"]);
+
   return {
     eventId,
     eventType: normalizedType,
     campaignId,
     leadId,
     payload: body,
+    ...(replyFromEmail ? { replyFromEmail } : {}),
+    ...(replySubject   ? { replySubject }   : {}),
+    ...(replyText      ? { replyText }      : {}),
+    ...(replyHtml      ? { replyHtml }      : {}),
   };
+}
+
+/** Pick the first truthy string value from a list of candidate keys in an object. */
+function stringField(obj: Record<string, unknown>, keys: string[]): string | undefined {
+  for (const k of keys) {
+    const v = obj[k];
+    if (typeof v === "string" && v.trim().length > 0) return v.trim();
+  }
+  return undefined;
 }
 
 export async function launchInstantlyCampaign(payload: {

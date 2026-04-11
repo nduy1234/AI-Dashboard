@@ -2,6 +2,7 @@ import { db } from "../repositories/outboundRepository";
 import {
   applyCampaignEventDelta,
   createAnalyticsEvent,
+  createEmailReply,
   createSendingEvent,
   findSendingEvent,
   getOwnedCampaignById,
@@ -21,14 +22,25 @@ export async function processSendingWebhook(payload: {
   campaignId: number | null;
   leadId: number | null;
   body: Record<string, unknown>;
+  /** Parsed reply content — supply for reply / positive_reply events */
+  replyFromEmail?: string;
+  replySubject?: string;
+  replyText?: string;
+  replyHtml?: string;
+  /** Resend-specific: email_id from the webhook data, used to fetch body content */
+  resendEmailId?: string;
+  /** Raw Message-ID header for reply threading (In-Reply-To) */
+  messageId?: string;
 }) {
   const existing = await findSendingEvent(payload.provider, payload.eventId);
   if (existing) {
     return { ok: true, deduplicated: true };
   }
 
+  let sendingEventId: number | undefined;
+
   await db.transaction(async (tx: any) => {
-    await createSendingEvent({
+    const sendingEvent = await createSendingEvent({
       campaignId: payload.campaignId,
       leadId: payload.leadId,
       provider: payload.provider,
@@ -36,9 +48,27 @@ export async function processSendingWebhook(payload: {
       eventId: payload.eventId,
       payload: payload.body,
     }, tx);
+    sendingEventId = sendingEvent?.id;
 
     if (payload.campaignId && ["open", "reply", "meeting_booked", "bounce", "sent"].includes(payload.eventType)) {
       await applyCampaignEventDelta(payload.campaignId, payload.eventType, tx);
+    }
+
+    // Persist reply content so it can be surfaced in the dashboard
+    if (payload.eventType === "reply" || payload.eventType === "positive_reply") {
+      await createEmailReply({
+        campaignId: payload.campaignId,
+        leadId: payload.leadId,
+        sendingEventId: sendingEvent?.id ?? null,
+        provider: payload.provider,
+        fromEmail: payload.replyFromEmail ?? null,
+        subject: payload.replySubject ?? null,
+        textBody: payload.replyText ?? null,
+        htmlBody: payload.replyHtml ?? null,
+        resendEmailId: payload.resendEmailId ?? null,
+        messageId: payload.messageId ?? null,
+        sentiment: payload.eventType === "positive_reply" ? "positive" : "unknown",
+      }, tx);
     }
   });
 
@@ -59,7 +89,7 @@ export async function processSendingWebhook(payload: {
     
     // Call agent webhook handler to record signal (lazy import to avoid blocking if package not built yet)
     try {
-      const mod = await import("../../../lib/agent-orchestration/dist/index.js" as any);
+      const mod = await import("../../../../lib/agent-orchestration/dist/index.js" as any);
       if (mod.handleProviderWebhook) {
         await mod.handleProviderWebhook(payload.provider, agentWebhookEvent);
         console.log(`[WebhookService] Recorded signal for agent learning: ${payload.eventType} from ${payload.provider}`);

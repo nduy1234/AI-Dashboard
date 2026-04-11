@@ -131,3 +131,35 @@ export const outboundJobAttemptsTable = pgTable("outbound_job_attempts", {
   metadata: jsonb("metadata"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * Stores parsed inbound reply content when a prospect responds to an outbound email.
+ * Populated by both the sending-provider webhooks (reply signals from Instantly/Smartlead)
+ * and the inbound email webhook (POST /webhooks/inbound/:provider) for Resend forwarding.
+ */
+export const emailRepliesTable = pgTable("email_replies", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id"),
+  leadId: integer("lead_id"),
+  /** FK to sending_events.id if this reply was created from a provider webhook event */
+  sendingEventId: integer("sending_event_id"),
+  provider: varchar("provider", { length: 64 }).notNull(),
+  fromEmail: varchar("from_email", { length: 512 }),
+  subject: text("subject"),
+  textBody: text("text_body"),
+  htmlBody: text("html_body"),
+  /**
+   * Resend inbound: the email_id returned in the webhook data object.
+   * Used to fetch body content from GET /emails/receiving/:email_id.
+   */
+  resendEmailId: varchar("resend_email_id", { length: 255 }),
+  /**
+   * The raw Message-ID header from the email.
+   * Required for reply threading — pass as In-Reply-To header when sending a response.
+   */
+  messageId: varchar("message_id", { length: 512 }),
+  /** Populated after AI sentiment analysis: positive | neutral | negative | unknown */
+  sentiment: varchar("sentiment", { length: 32 }).notNull().default("unknown"),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});

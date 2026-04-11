@@ -5,6 +5,7 @@ import {
   campaignsTable,
   db,
   domainPoolStateTable,
+  emailRepliesTable,
   leadEnrichmentAttemptsTable,
   leadScoresTable,
   leadSourcesTable,
@@ -304,6 +305,26 @@ export async function findRecentCampaignForEmail(email: string) {
   return match ?? null;
 }
 
+/**
+ * Fallback for TEST_EMAIL_OVERRIDE mode: when all emails are redirected to a
+ * single test address, real lead emails won't match the reply sender.  Return
+ * the most recently sent outbound message so the reply is still attributed to
+ * the correct campaign and lead.
+ */
+export async function findMostRecentSentMessage() {
+  const [match] = await db
+    .select({
+      leadId: outboundMessagesTable.leadId,
+      campaignId: outboundMessagesTable.campaignId,
+    })
+    .from(outboundMessagesTable)
+    .where(sql`status = 'sent'`)
+    .orderBy(desc(outboundMessagesTable.sentAt), desc(outboundMessagesTable.createdAt))
+    .limit(1);
+
+  return match ?? null;
+}
+
 type DbExecutor = {
   insert: typeof db.insert;
   update: typeof db.update;
@@ -326,7 +347,8 @@ export async function createSendingEvent(values: {
   eventId: string;
   payload: unknown;
 }, executor: DbExecutor = db) {
-  await executor.insert(sendingEventsTable).values(values);
+  const [row] = await executor.insert(sendingEventsTable).values(values).returning();
+  return row;
 }
 
 export async function markOutboundMessageSent(
@@ -465,6 +487,62 @@ export async function findSendingEvent(provider: string, eventId: string) {
     .from(sendingEventsTable)
     .where(and(eq(sendingEventsTable.provider, provider), eq(sendingEventsTable.eventId, eventId)));
   return existing;
+}
+
+export async function createEmailReply(
+  values: {
+    campaignId?: number | null;
+    leadId?: number | null;
+    sendingEventId?: number | null;
+    provider: string;
+    fromEmail?: string | null;
+    subject?: string | null;
+    textBody?: string | null;
+    htmlBody?: string | null;
+    /** Resend email_id — used to re-fetch body via GET /emails/receiving/:id */
+    resendEmailId?: string | null;
+    /** Raw Message-ID header — used as In-Reply-To for reply threading */
+    messageId?: string | null;
+    sentiment?: string;
+  },
+  executor: DbExecutor = db,
+) {
+  const [row] = await executor
+    .insert(emailRepliesTable)
+    .values({
+      campaignId: values.campaignId ?? null,
+      leadId: values.leadId ?? null,
+      sendingEventId: values.sendingEventId ?? null,
+      provider: values.provider,
+      fromEmail: values.fromEmail ?? null,
+      subject: values.subject ?? null,
+      textBody: values.textBody ?? null,
+      htmlBody: values.htmlBody ?? null,
+      resendEmailId: values.resendEmailId ?? null,
+      messageId: values.messageId ?? null,
+      sentiment: values.sentiment ?? "unknown",
+    })
+    .returning();
+  return row;
+}
+
+export async function listEmailReplies(
+  filters: { campaignId?: number; leadId?: number },
+  limit = 50,
+) {
+  const conditions: ReturnType<typeof eq>[] = [];
+  if (filters.campaignId != null) {
+    conditions.push(eq(emailRepliesTable.campaignId, filters.campaignId));
+  }
+  if (filters.leadId != null) {
+    conditions.push(eq(emailRepliesTable.leadId, filters.leadId));
+  }
+  return db
+    .select()
+    .from(emailRepliesTable)
+    .where(conditions.length ? and(...conditions) : undefined)
+    .orderBy(desc(emailRepliesTable.receivedAt))
+    .limit(limit);
 }
 
 export async function applyCampaignEventDelta(campaignId: number, eventType: string, executor: DbExecutor = db) {
