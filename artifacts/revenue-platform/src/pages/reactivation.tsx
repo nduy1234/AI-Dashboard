@@ -173,12 +173,13 @@ export default function Reactivation() {
                   <p className="text-sm mt-1">Import leads from your CRM to start reactivation campaigns.</p>
                 </div>
               ) : (
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Name</TableHead>
-                      <TableHead>Company</TableHead>
-                      <TableHead>Title</TableHead>
+                      <TableHead className="hidden sm:table-cell">Company</TableHead>
+                      <TableHead className="hidden md:table-cell">Title</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Score</TableHead>
                     </TableRow>
@@ -187,8 +188,8 @@ export default function Reactivation() {
                     {dormantLeads.map(lead => (
                       <TableRow key={lead.id}>
                         <TableCell className="font-medium">{lead.firstName} {lead.lastName}</TableCell>
-                        <TableCell>{lead.company}</TableCell>
-                        <TableCell className="text-muted-foreground">{lead.title}</TableCell>
+                        <TableCell className="hidden sm:table-cell">{lead.company}</TableCell>
+                        <TableCell className="text-muted-foreground hidden md:table-cell">{lead.title}</TableCell>
                         <TableCell>
                           <Badge variant="secondary" className={statusColor[lead.status] ?? ""}>{lead.status}</Badge>
                         </TableCell>
@@ -204,6 +205,7 @@ export default function Reactivation() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               )}
             </CardContent>
           </Card>
@@ -397,14 +399,15 @@ export default function Reactivation() {
                 <CardDescription>See how each reactivation campaign contributes to revenue.</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Campaign</TableHead>
                       <TableHead>Leads</TableHead>
-                      <TableHead>Re-engaged</TableHead>
+                      <TableHead className="hidden sm:table-cell">Re-engaged</TableHead>
                       <TableHead>Meetings</TableHead>
-                      <TableHead>Pipeline Value</TableHead>
+                      <TableHead className="hidden sm:table-cell">Pipeline Value</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -413,14 +416,14 @@ export default function Reactivation() {
                       <TableRow key={campaign.id}>
                         <TableCell className="font-medium">{campaign.name}</TableCell>
                         <TableCell>{campaign.leadCount}</TableCell>
-                        <TableCell>
+                        <TableCell className="hidden sm:table-cell">
                           <div className="flex items-center gap-1">
                             <TrendingUp className="h-3 w-3 text-green-500" />
                             {campaign.replyCount}
                           </div>
                         </TableCell>
                         <TableCell>{campaign.meetingsBooked}</TableCell>
-                        <TableCell className="font-medium text-green-500">
+                        <TableCell className="font-medium text-green-500 hidden sm:table-cell">
                           ${((campaign.meetingsBooked ?? 0) * 8500).toLocaleString()}
                         </TableCell>
                         <TableCell>
@@ -432,6 +435,7 @@ export default function Reactivation() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </div>

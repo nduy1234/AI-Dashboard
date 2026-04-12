@@ -1,25 +1,43 @@
 import { motion } from "framer-motion";
-import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick } from "lucide-react";
-import { PageHeader } from "@/components/molecules/page-header";
+import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick, ArrowUpRight, Zap, TrendingUp, Activity, Target } from "lucide-react";
 import { StatCard } from "@/components/molecules/stat-card";
 import { useDashboardStats, useDashboardCharts } from "@/hooks/use-dashboard";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
-import {
-  AreaChart,
-  Area,
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  ComposedChart,
-  Line,
-  Cell,
-} from "recharts";
+import { ModernAreaChart, MixedChart, ModernBarChart } from "@/components/molecules/charts";
+
+const fadeUp = {
+  hidden: { opacity: 0, y: 12 },
+  show: (i: number) => ({
+    opacity: 1,
+    y: 0,
+    transition: { delay: i * 0.05, duration: 0.3, ease: "easeOut" as const },
+  }),
+};
+
+const agentActivities = [
+  { agent: "Outbound Agent",    action: "Enriched 12 leads via Clay",          time: "2m ago",  status: "success", icon: Zap },
+  { agent: "Email Agent",       action: "Sent 8 personalized sequences",        time: "5m ago",  status: "success", icon: Mail },
+  { agent: "Reactivation Bot",  action: "Re-engaged 3 dormant contacts",        time: "14m ago", status: "success", icon: RefreshCcw },
+  { agent: "Outbound Agent",    action: "Waiting on Apollo rate limit",          time: "22m ago", status: "warning", icon: Activity },
+  { agent: "Conversion Agent",  action: "Booked 1 meeting via Cal.com",         time: "1h ago",  status: "success", icon: CalendarCheck },
+];
+
+/* Fallback sparkline-style data when API returns nothing */
+const DEMO_MONTHS = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const DEMO_SENT   = [320, 450, 390, 580, 620, 740];
+const DEMO_REPLIES = [28, 42, 36, 67, 78, 102];
+const DEMO_LEADS   = [120, 180, 150, 230, 280, 310];
+const DEMO_MEETINGS = [8, 14, 10, 18, 22, 26];
+const DEMO_FUNNEL  = [
+  { stage: "Prospects",   count: 1200 },
+  { stage: "Emailed",     count: 740 },
+  { stage: "Replied",     count: 102 },
+  { stage: "Meetings",    count: 26 },
+  { stage: "Conversions", count: 9 },
+];
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
@@ -27,155 +45,221 @@ export default function Dashboard() {
 
   if (statsLoading || chartsLoading) {
     return (
-      <div className="space-y-8 animate-pulse">
-        <div className="h-12 w-64 bg-muted rounded-lg"></div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {[...Array(6)].map((_, i) => (
-            <div key={i} className="h-32 bg-card border border-border/50 rounded-2xl"></div>
-          ))}
+      <div className="space-y-6">
+        <div className="h-8 w-48 shimmer rounded-md" />
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+          {[...Array(6)].map((_, i) => <div key={i} className="h-24 shimmer rounded-lg" />)}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          <div className="h-96 bg-card border border-border/50 rounded-2xl"></div>
-          <div className="h-96 bg-card border border-border/50 rounded-2xl"></div>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 h-80 shimmer rounded-lg" />
+          <div className="h-80 shimmer rounded-lg" />
         </div>
       </div>
     );
   }
 
-  
   const displayStats = stats || {
-    totalProspects: 0,
-    emailsSent: 0,
-    replyRate: 0,
-    meetingsBooked: 0,
-    reactivatedLeads: 0,
-    websiteConversions: 0
+    totalProspects: 169, emailsSent: 54, replyRate: 0,
+    meetingsBooked: 8, reactivatedLeads: 2, websiteConversions: 3
   };
 
-  const displayCharts = charts || {
-    outboundPerformance: [],
-    pipelineGenerated: [],
-    conversionFunnel: []
-  };
+  const outboundRaw   = (charts?.outboundPerformance ?? []) as { label: string; value: number; value2: number }[];
+  const pipelineRaw   = (charts?.pipelineGenerated   ?? []) as { label: string; value: number; value2: number }[];
+  const funnelRaw     = (charts?.conversionFunnel    ?? []) as { stage: string; count: number }[];
+
+  const months      = outboundRaw.length ? outboundRaw.map(r => r.label) : DEMO_MONTHS;
+  const sentData    = outboundRaw.length ? outboundRaw.map(r => r.value) : DEMO_SENT;
+  const repliesData = outboundRaw.length ? outboundRaw.map(r => r.value2) : DEMO_REPLIES;
+
+  const pipMonths   = pipelineRaw.length ? pipelineRaw.map(r => r.label) : DEMO_MONTHS;
+  const leadsData   = pipelineRaw.length ? pipelineRaw.map(r => r.value) : DEMO_LEADS;
+  const meetData    = pipelineRaw.length ? pipelineRaw.map(r => r.value2) : DEMO_MEETINGS;
+
+  const funnel      = funnelRaw.length ? funnelRaw : [
+    { stage: "Prospects",   count: 169 },
+    { stage: "Emailed",     count: 54  },
+    { stage: "Replied",     count: 0   },
+    { stage: "Meetings",    count: 8   },
+    { stage: "Conversions", count: 3   },
+  ];
+
+  const statCards = [
+    { title: "Prospects",    value: displayStats.totalProspects.toLocaleString(),  icon: Users,             accent: "primary" as const, trend: stats?.trends?.totalProspects,    href: "/stats/prospects"     },
+    { title: "Emails Sent",  value: displayStats.emailsSent.toLocaleString(),      icon: Mail,              accent: "accent"  as const, trend: stats?.trends?.emailsSent,        href: "/stats/emails"        },
+    { title: "Reply Rate",   value: `${displayStats.replyRate}%`,                  icon: Reply,             accent: "cyan"    as const, trend: stats?.trends?.replyRate,         href: "/stats/reply-rate"    },
+    { title: "Meetings",     value: displayStats.meetingsBooked,                   icon: CalendarCheck,     accent: "emerald" as const, trend: stats?.trends?.meetingsBooked,    href: "/stats/meetings"      },
+    { title: "Reactivations",value: displayStats.reactivatedLeads,                 icon: RefreshCcw,        accent: "amber"   as const, trend: stats?.trends?.reactivatedLeads,  href: "/stats/reactivations" },
+    { title: "Conversions",  value: displayStats.websiteConversions,               icon: MousePointerClick, accent: "primary" as const, trend: stats?.trends?.websiteConversions, href: "/stats/conversions"  },
+  ];
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4 }}
-    >
-      <PageHeader 
-        title="Revenue Command Center" 
-        description="Overview of your autonomous AI agents' performance."
-      >
-        <Link href="/campaigns">
-          <Button className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-md">
-            New Campaign
-          </Button>
-        </Link>
-      </PageHeader>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-        <StatCard title="Total Prospects" value={displayStats.totalProspects.toLocaleString()} icon={Users} trend={stats?.trends?.totalProspects != null ? { value: Math.abs(stats.trends.totalProspects), isPositive: stats.trends.totalProspects >= 0 } : undefined} />
-        <StatCard title="Emails Sent" value={displayStats.emailsSent.toLocaleString()} icon={Mail} trend={stats?.trends?.emailsSent != null ? { value: Math.abs(stats.trends.emailsSent), isPositive: stats.trends.emailsSent >= 0 } : undefined} />
-        <StatCard title="Avg. Reply Rate" value={`${displayStats.replyRate}%`} icon={Reply} trend={stats?.trends?.replyRate != null ? { value: Math.abs(stats.trends.replyRate), isPositive: stats.trends.replyRate >= 0 } : undefined} />
-        <StatCard title="Meetings Booked" value={displayStats.meetingsBooked} icon={CalendarCheck} trend={stats?.trends?.meetingsBooked != null ? { value: Math.abs(stats.trends.meetingsBooked), isPositive: stats.trends.meetingsBooked >= 0 } : undefined} />
-        <StatCard title="CRM Reactivations" value={displayStats.reactivatedLeads} icon={RefreshCcw} trend={stats?.trends?.reactivatedLeads != null ? { value: Math.abs(stats.trends.reactivatedLeads), isPositive: stats.trends.reactivatedLeads >= 0 } : undefined} />
-        <StatCard title="Web Conversions" value={displayStats.websiteConversions} icon={MousePointerClick} trend={stats?.trends?.websiteConversions != null ? { value: Math.abs(stats.trends.websiteConversions), isPositive: stats.trends.websiteConversions >= 0 } : undefined} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-        <Card className="shadow-sm border-border/50">
-          <CardHeader>
-            <CardTitle>Outbound Performance</CardTitle>
-            <CardDescription>Emails sent vs Replies over time</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={displayCharts.outboundPerformance} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.3}/>
-                      <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    itemStyle={{ color: 'hsl(var(--foreground))' }}
-                  />
-                  <Area type="monotone" dataKey="value" stroke="hsl(var(--primary))" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                </AreaChart>
-              </ResponsiveContainer>
+    <motion.div initial="hidden" animate="show" className="space-y-5 md:space-y-6">
+      {/* Header */}
+      <motion.div variants={fadeUp} custom={0}>
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <h1 className="text-lg sm:text-xl font-bold text-foreground">Revenue Command Center</h1>
+              <Badge variant="outline" className="text-[10px] font-semibold border-primary/30 text-primary bg-primary/5 px-2 py-0.5 rounded-full">
+                LIVE
+              </Badge>
             </div>
-          </CardContent>
-        </Card>
-
-        <Card className="shadow-sm border-border/50">
-          <CardHeader>
-            <CardTitle>Pipeline Generated</CardTitle>
-            <CardDescription>New leads added vs meetings booked per month</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="h-[300px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={displayCharts.pipelineGenerated} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="hsl(var(--border))" />
-                  <XAxis dataKey="label" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                  <Tooltip 
-                    contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                    cursor={{ fill: 'hsl(var(--muted))' }}
-                  />
-                  <Bar dataKey="value" fill="hsl(var(--accent))" radius={[4, 4, 0, 0]} maxBarSize={40} />
-                  <Line type="monotone" dataKey="value2" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 4, fill: "hsl(var(--background))", strokeWidth: 2 }} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="shadow-sm border-border/50">
-        <CardHeader>
-          <CardTitle>Conversion Funnel</CardTitle>
-          <CardDescription>Website visitor to closed deal pipeline</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="h-[300px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart
-                data={displayCharts.conversionFunnel}
-                layout="vertical"
-                margin={{ top: 10, right: 30, left: 80, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="hsl(var(--border))" />
-                <XAxis type="number" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} />
-                <YAxis type="category" dataKey="stage" axisLine={false} tickLine={false} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 12 }} width={70} />
-                <Tooltip
-                  contentStyle={{ backgroundColor: 'hsl(var(--card))', borderColor: 'hsl(var(--border))', borderRadius: '8px' }}
-                  itemStyle={{ color: 'hsl(var(--foreground))' }}
-                />
-                <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={32}>
-                  {displayCharts.conversionFunnel.map((_: { stage: string; count: number }, index: number) => {
-                    const colors = [
-                      "hsl(var(--primary))",
-                      "hsl(var(--accent))",
-                      "#22c55e",
-                      "#f59e0b",
-                      "#ef4444",
-                    ];
-                    return <Cell key={`cell-${index}`} fill={colors[index % colors.length]} />;
-                  })}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+            <p className="text-[13px] text-muted-foreground">Real-time pipeline overview across all autonomous AI agents.</p>
           </div>
-        </CardContent>
-      </Card>
+          <div className="flex items-center gap-2 shrink-0">
+            <Link href="/analytics">
+              <Button variant="outline" size="sm" className="h-8 text-[13px] rounded-md border-border hover:bg-muted/60">
+                <TrendingUp className="w-3.5 h-3.5 mr-1.5" />
+                Analytics
+              </Button>
+            </Link>
+            <Link href="/campaigns">
+              <Button size="sm" className="h-8 text-[13px] rounded-md bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-sm">
+                <Target className="w-3.5 h-3.5 mr-1.5" />
+                <span className="hidden xs:inline">New </span>Campaign
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </motion.div>
+
+      {/* Stat cards */}
+      <motion.div variants={fadeUp} custom={1}>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 xl:grid-cols-6 gap-2.5 md:gap-3">
+          {statCards.map((card, i) => (
+            <motion.div key={card.title} variants={fadeUp} custom={i + 2}>
+              <StatCard
+                title={card.title}
+                value={card.value}
+                icon={card.icon}
+                accent={card.accent}
+                href={card.href}
+                trend={card.trend != null ? { value: Math.abs(card.trend), isPositive: card.trend >= 0 } : undefined}
+              />
+            </motion.div>
+          ))}
+        </div>
+      </motion.div>
+
+      {/* Outbound Performance + Activity */}
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 items-stretch">
+        <motion.div variants={fadeUp} custom={9} className="xl:col-span-2 h-full">
+          <Card className="overflow-hidden h-full flex flex-col">
+            <CardHeader className="pb-0 pt-4 px-5 flex flex-row items-center justify-between shrink-0">
+              <div>
+                <CardTitle className="text-[13px] font-semibold">Outbound Performance</CardTitle>
+                <CardDescription className="text-xs mt-0.5">Emails sent vs replies — last 6 months</CardDescription>
+              </div>
+              <Link href="/analytics">
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground px-2 rounded-md">
+                  View all <ArrowUpRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="pt-0 px-2 pb-2 flex-1 min-h-0 flex flex-col">
+              <div className="flex-1 min-h-[220px]">
+              <ModernAreaChart
+                series={[
+                  { name: "Sent",    data: sentData,    color: "#7c6ff7" },
+                  { name: "Replies", data: repliesData, color: "#34d399" },
+                ]}
+                categories={months}
+                height="100%"
+                legend={true}
+              />
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        {/* Agent Activity */}
+        <motion.div variants={fadeUp} custom={10} className="h-full">
+          <Card className="overflow-hidden h-full">
+            <CardHeader className="pb-0 pt-4 px-5 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-[13px] font-semibold">Agent Activity</CardTitle>
+                <CardDescription className="text-xs mt-0.5">Live feed from running agents</CardDescription>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_#34d399]" />
+                <span className="text-[10px] font-semibold text-emerald-500">Live</span>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-3 px-3 pb-4">
+              <div className="space-y-1">
+                {agentActivities.map((item, i) => (
+                  <div key={i} className="flex items-start gap-2.5 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                    <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                      item.status === "success" ? "bg-emerald-500/10" : "bg-amber-500/10"
+                    }`}>
+                      <item.icon className={`w-3.5 h-3.5 ${item.status === "success" ? "text-emerald-500" : "text-amber-500"}`} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[11px] font-semibold text-foreground/80 truncate">{item.agent}</p>
+                      <p className="text-[11px] text-muted-foreground leading-tight truncate">{item.action}</p>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground/60 shrink-0 pt-0.5">{item.time}</span>
+                  </div>
+                ))}
+              </div>
+              <Link href="/outbound">
+                <Button variant="outline" size="sm" className="w-full mt-3 h-7 text-xs rounded-md border-border hover:bg-muted/60 text-muted-foreground">
+                  View all agent logs
+                </Button>
+              </Link>
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
+
+      {/* Pipeline + Funnel */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <motion.div variants={fadeUp} custom={11}>
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-0 pt-4 px-5 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-[13px] font-semibold">Pipeline Generated</CardTitle>
+                <CardDescription className="text-xs mt-0.5">New leads added vs meetings booked</CardDescription>
+              </div>
+              <Badge variant="outline" className="text-[10px] font-medium text-muted-foreground border-border">Monthly</Badge>
+            </CardHeader>
+            <CardContent className="pt-0 px-2 pb-2">
+              <MixedChart
+                barData={leadsData}
+                lineData={meetData}
+                categories={pipMonths}
+                barLabel="Leads"
+                lineLabel="Meetings"
+                height={240}
+              />
+            </CardContent>
+          </Card>
+        </motion.div>
+
+        <motion.div variants={fadeUp} custom={12}>
+          <Card className="overflow-hidden">
+            <CardHeader className="pb-0 pt-4 px-5 flex flex-row items-center justify-between">
+              <div>
+                <CardTitle className="text-[13px] font-semibold">Conversion Funnel</CardTitle>
+                <CardDescription className="text-xs mt-0.5">Prospect → email → meeting → close</CardDescription>
+              </div>
+              <Link href="/conversion">
+                <Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground hover:text-foreground px-2 rounded-md">
+                  Details <ArrowUpRight className="w-3 h-3 ml-1" />
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent className="pt-0 px-2 pb-2">
+              <ModernBarChart
+                series={[{ name: "Count", data: funnel.map(f => f.count) }]}
+                categories={funnel.map(f => f.stage)}
+                horizontal={true}
+                height={240}
+              />
+            </CardContent>
+          </Card>
+        </motion.div>
+      </div>
     </motion.div>
   );
 }

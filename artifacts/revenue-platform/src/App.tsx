@@ -18,6 +18,14 @@ import Analytics from "@/pages/analytics";
 import SettingsPage from "@/pages/settings";
 import AuthCallbackPage from "@/pages/auth-callback";
 
+// Stat detail pages
+import ProspectsDetail from "@/pages/stats/prospects";
+import EmailsSentDetail from "@/pages/stats/emails";
+import ReplyRateDetail from "@/pages/stats/reply-rate";
+import MeetingsDetail from "@/pages/stats/meetings";
+import ReactivationsDetail from "@/pages/stats/reactivations";
+import ConversionsDetail from "@/pages/stats/conversions";
+
 const queryClient = new QueryClient();
 
 function ProtectedRoute({ component: Component, ...rest }: { component: React.ComponentType } & Record<string, unknown>) {
@@ -54,6 +62,13 @@ function Router() {
       <Route path="/conversion" component={() => <ProtectedRoute component={Conversion} />} />
       <Route path="/analytics" component={() => <ProtectedRoute component={Analytics} />} />
       <Route path="/settings" component={() => <ProtectedRoute component={SettingsPage} />} />
+      {/* Stat detail routes */}
+      <Route path="/stats/prospects"    component={() => <ProtectedRoute component={ProspectsDetail}    />} />
+      <Route path="/stats/emails"       component={() => <ProtectedRoute component={EmailsSentDetail}   />} />
+      <Route path="/stats/reply-rate"   component={() => <ProtectedRoute component={ReplyRateDetail}    />} />
+      <Route path="/stats/meetings"     component={() => <ProtectedRoute component={MeetingsDetail}     />} />
+      <Route path="/stats/reactivations" component={() => <ProtectedRoute component={ReactivationsDetail} />} />
+      <Route path="/stats/conversions"  component={() => <ProtectedRoute component={ConversionsDetail}  />} />
       <Route component={NotFound} />
     </Switch>
   );

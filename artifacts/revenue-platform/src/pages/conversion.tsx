@@ -191,11 +191,12 @@ export default function Conversion() {
                 <CardDescription>Documents the AI chatbot uses to answer visitor questions.</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Document</TableHead>
-                      <TableHead>Type</TableHead>
+                      <TableHead className="hidden sm:table-cell">Type</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Actions</TableHead>
                     </TableRow>
@@ -214,7 +215,7 @@ export default function Conversion() {
                             {doc.title}
                           </div>
                         </TableCell>
-                        <TableCell><Badge variant="secondary">{doc.type}</Badge></TableCell>
+                        <TableCell className="hidden sm:table-cell"><Badge variant="secondary">{doc.type}</Badge></TableCell>
                         <TableCell>
                           <Badge className={doc.status === "indexed" ? "bg-green-500/10 text-green-500" : "bg-yellow-500/10 text-yellow-500"}>
                             {doc.status === "indexed" ? <><CheckCircle2 className="h-3 w-3 mr-1" /> Indexed</> : "Processing..."}
@@ -227,6 +228,7 @@ export default function Conversion() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </div>

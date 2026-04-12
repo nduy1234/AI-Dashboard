@@ -78,11 +78,11 @@ export default function SettingsPage() {
       />
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-muted/50">
+        <TabsList className="bg-muted/50 h-auto flex-wrap gap-1">
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
-          <TabsTrigger value="prompts">Prompt Templates</TabsTrigger>
+          <TabsTrigger value="prompts">Prompts</TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="mt-6">

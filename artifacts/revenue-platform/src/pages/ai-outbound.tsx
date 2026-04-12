@@ -179,12 +179,13 @@ export default function AIOutbound() {
                 <CardDescription>Review verification status for each imported lead</CardDescription>
               </CardHeader>
               <CardContent>
+                <div className="overflow-x-auto">
                 <Table>
                   <TableHeader>
                     <TableRow>
                       <TableHead>Email</TableHead>
                       <TableHead>Name</TableHead>
-                      <TableHead>Company</TableHead>
+                      <TableHead className="hidden sm:table-cell">Company</TableHead>
                       <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -193,7 +194,7 @@ export default function AIOutbound() {
                       <TableRow key={lead.id}>
                         <TableCell className="font-mono text-sm">{lead.email}</TableCell>
                         <TableCell>{lead.firstName} {lead.lastName}</TableCell>
-                        <TableCell className="text-muted-foreground">{lead.company}</TableCell>
+                        <TableCell className="text-muted-foreground hidden sm:table-cell">{lead.company}</TableCell>
                         <TableCell>
                           {lead.verified ? (
                             <Badge className="bg-green-500/10 text-green-500">
@@ -209,6 +210,7 @@ export default function AIOutbound() {
                     ))}
                   </TableBody>
                 </Table>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -226,8 +228,8 @@ export default function AIOutbound() {
               </Button>
             </CardHeader>
             <CardContent>
-              <div className="rounded-xl border border-border overflow-hidden">
-                <table className="w-full text-sm text-left">
+              <div className="rounded-xl border border-border overflow-x-auto">
+                <table className="w-full text-sm text-left min-w-[560px]">
                   <thead className="bg-muted/50 text-muted-foreground">
                     <tr>
                       <th className="px-4 py-3 font-medium">Account</th>
