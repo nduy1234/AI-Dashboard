@@ -4,27 +4,39 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "NODE_ENV=development tsx --env-file=../../.env ./src/index.ts",
+    "dev": "NODE_ENV=development tsx --watch --env-file=../../.env ./src/index.ts",
+    "worker": "NODE_ENV=development tsx --watch --env-file=../../.env ./src/worker.ts",
     "build": "tsx ./build.ts",
-    "typecheck": "tsc -p tsconfig.json --noEmit"
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "seed:phase1.1": "NODE_ENV=development tsx --env-file=../../.env ./src/seedPhase11Operationalization.ts"
   },
   "dependencies": {
     "@types/swagger-ui-express": "^4.1.8",
+    "@workspace/agent-orchestration": "workspace:*",
     "@workspace/api-zod": "workspace:*",
     "@workspace/db": "workspace:*",
     "@workspace/integrations-openai-ai-server": "workspace:*",
+    "bullmq": "^5.71.1",
     "cookie-parser": "^1.4.7",
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "groq-sdk": "^1.1.2",
+    "ioredis": "^5.10.1",
+    "jsonwebtoken": "^9.0.3",
+    "node-fetch": "^3.3.2",
     "openid-client": "^6.0.0",
+    "svix": "^1.90.0",
     "swagger-ui-express": "^5.0.1",
-    "yaml": "^2.8.3"
+    "undici": "^8.0.2",
+    "yaml": "^2.8.3",
+    "zod": "catalog:"
   },
   "devDependencies": {
     "@types/cookie-parser": "^1.4.10",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
+    "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "catalog:",
     "esbuild": "^0.27.3",
     "tsx": "catalog:"

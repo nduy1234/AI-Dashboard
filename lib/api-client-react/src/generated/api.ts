@@ -30,6 +30,8 @@ import type {
   AgentLog,
   AnalyticsOverview,
   ApiKey,
+  AuthRefreshRequest,
+  AuthTokenExchangeResponse,
   AuthUserEnvelope,
   BeginBrowserLoginParams,
   Campaign,
@@ -45,11 +47,15 @@ import type {
   EmailAccount,
   ErrorEnvelope,
   GetAnalyticsOverviewParams,
+  GetGoogleAuthStartParams,
+  GoogleAuthExchangeRequest,
+  GoogleAuthStartResponse,
   HandleBrowserLoginCallbackParams,
   HealthStatus,
   ImportLeadsBody,
   ImportLeadsResult,
   Integration,
+  JobQueuedResult,
   KnowledgeBaseDoc,
   Lead,
   ListAgentLogsParams,
@@ -58,6 +64,18 @@ import type {
   LogoutSuccess,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
+  OutboundCampaignPerformance,
+  OutboundImportJobBody,
+  OutboundJob,
+  OutboundJobResult,
+  OutboundLaunchJobBody,
+  OutboundLeadIdsJobBody,
+  OutboundPersonalizeJobBody,
+  OutboundPhaseOneConfig,
+  OutboundPilotRunBody,
+  OutboundPilotRunResult,
+  OutboundPipelineStats,
+  OutboundRunAllBody,
   PromptTemplate,
   TeamMember,
   UpdateCampaignBody,
@@ -66,6 +84,8 @@ import type {
   UpdatePromptTemplateBody,
   VerifyEmailsBody,
   VerifyEmailsResult,
+  WebhookAck,
+  WebhookEventBody,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -82,7 +102,7 @@ type SecondParameter<T extends (...args: never) => unknown> = Parameters<T>[1];
  * @summary Health check
  */
 export const getHealthCheckUrl = () => {
-  return `/api/healthz`;
+  return `/api/v1/healthz`;
 };
 
 export const healthCheck = async (
@@ -95,7 +115,7 @@ export const healthCheck = async (
 };
 
 export const getHealthCheckQueryKey = () => {
-  return [`/api/healthz`] as const;
+  return [`/api/v1/healthz`] as const;
 };
 
 export const getHealthCheckQueryOptions = <
@@ -157,7 +177,7 @@ export function useHealthCheck<
  * @summary Get the currently authenticated user
  */
 export const getGetCurrentAuthUserUrl = () => {
-  return `/api/auth/user`;
+  return `/api/v1/auth/user`;
 };
 
 export const getCurrentAuthUser = async (
@@ -170,7 +190,7 @@ export const getCurrentAuthUser = async (
 };
 
 export const getGetCurrentAuthUserQueryKey = () => {
-  return [`/api/auth/user`] as const;
+  return [`/api/v1/auth/user`] as const;
 };
 
 export const getGetCurrentAuthUserQueryOptions = <
@@ -229,6 +249,282 @@ export function useGetCurrentAuthUser<
 }
 
 /**
+ * @summary Generate Google OAuth authorization URL
+ */
+export const getGetGoogleAuthStartUrl = (params: GetGoogleAuthStartParams) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/auth/google/start?${stringifiedParams}`
+    : `/api/v1/auth/google/start`;
+};
+
+export const getGoogleAuthStart = async (
+  params: GetGoogleAuthStartParams,
+  options?: RequestInit,
+): Promise<GoogleAuthStartResponse> => {
+  return customFetch<GoogleAuthStartResponse>(
+    getGetGoogleAuthStartUrl(params),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetGoogleAuthStartQueryKey = (
+  params?: GetGoogleAuthStartParams,
+) => {
+  return [`/api/v1/auth/google/start`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetGoogleAuthStartQueryOptions = <
+  TData = Awaited<ReturnType<typeof getGoogleAuthStart>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: GetGoogleAuthStartParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAuthStart>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetGoogleAuthStartQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getGoogleAuthStart>>
+  > = ({ signal }) => getGoogleAuthStart(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getGoogleAuthStart>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetGoogleAuthStartQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getGoogleAuthStart>>
+>;
+export type GetGoogleAuthStartQueryError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Generate Google OAuth authorization URL
+ */
+
+export function useGetGoogleAuthStart<
+  TData = Awaited<ReturnType<typeof getGoogleAuthStart>>,
+  TError = ErrorType<ErrorEnvelope>,
+>(
+  params: GetGoogleAuthStartParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getGoogleAuthStart>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetGoogleAuthStartQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Exchange Google OAuth code for API JWT tokens
+ */
+export const getExchangeGoogleAuthCodeUrl = () => {
+  return `/api/v1/auth/google/exchange`;
+};
+
+export const exchangeGoogleAuthCode = async (
+  googleAuthExchangeRequest: GoogleAuthExchangeRequest,
+  options?: RequestInit,
+): Promise<AuthTokenExchangeResponse> => {
+  return customFetch<AuthTokenExchangeResponse>(
+    getExchangeGoogleAuthCodeUrl(),
+    {
+      ...options,
+      method: "POST",
+      headers: { "Content-Type": "application/json", ...options?.headers },
+      body: JSON.stringify(googleAuthExchangeRequest),
+    },
+  );
+};
+
+export const getExchangeGoogleAuthCodeMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    TError,
+    { data: BodyType<GoogleAuthExchangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+  TError,
+  { data: BodyType<GoogleAuthExchangeRequest> },
+  TContext
+> => {
+  const mutationKey = ["exchangeGoogleAuthCode"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    { data: BodyType<GoogleAuthExchangeRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return exchangeGoogleAuthCode(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ExchangeGoogleAuthCodeMutationResult = NonNullable<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>
+>;
+export type ExchangeGoogleAuthCodeMutationBody =
+  BodyType<GoogleAuthExchangeRequest>;
+export type ExchangeGoogleAuthCodeMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Exchange Google OAuth code for API JWT tokens
+ */
+export const useExchangeGoogleAuthCode = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+    TError,
+    { data: BodyType<GoogleAuthExchangeRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof exchangeGoogleAuthCode>>,
+  TError,
+  { data: BodyType<GoogleAuthExchangeRequest> },
+  TContext
+> => {
+  return useMutation(getExchangeGoogleAuthCodeMutationOptions(options));
+};
+
+/**
+ * @summary Refresh JWT access token with refresh token
+ */
+export const getRefreshAuthTokenUrl = () => {
+  return `/api/v1/auth/refresh`;
+};
+
+export const refreshAuthToken = async (
+  authRefreshRequest?: AuthRefreshRequest,
+  options?: RequestInit,
+): Promise<AuthTokenExchangeResponse> => {
+  return customFetch<AuthTokenExchangeResponse>(getRefreshAuthTokenUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(authRefreshRequest),
+  });
+};
+
+export const getRefreshAuthTokenMutationOptions = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    TError,
+    { data: BodyType<AuthRefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof refreshAuthToken>>,
+  TError,
+  { data: BodyType<AuthRefreshRequest> },
+  TContext
+> => {
+  const mutationKey = ["refreshAuthToken"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    { data: BodyType<AuthRefreshRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return refreshAuthToken(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RefreshAuthTokenMutationResult = NonNullable<
+  Awaited<ReturnType<typeof refreshAuthToken>>
+>;
+export type RefreshAuthTokenMutationBody = BodyType<AuthRefreshRequest>;
+export type RefreshAuthTokenMutationError = ErrorType<ErrorEnvelope>;
+
+/**
+ * @summary Refresh JWT access token with refresh token
+ */
+export const useRefreshAuthToken = <
+  TError = ErrorType<ErrorEnvelope>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof refreshAuthToken>>,
+    TError,
+    { data: BodyType<AuthRefreshRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof refreshAuthToken>>,
+  TError,
+  { data: BodyType<AuthRefreshRequest> },
+  TContext
+> => {
+  return useMutation(getRefreshAuthTokenMutationOptions(options));
+};
+
+/**
  * @summary Start the browser OIDC login flow
  */
 export const getBeginBrowserLoginUrl = (params?: BeginBrowserLoginParams) => {
@@ -243,8 +539,8 @@ export const getBeginBrowserLoginUrl = (params?: BeginBrowserLoginParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/login?${stringifiedParams}`
-    : `/api/login`;
+    ? `/api/v1/login?${stringifiedParams}`
+    : `/api/v1/login`;
 };
 
 export const beginBrowserLogin = async (
@@ -260,7 +556,7 @@ export const beginBrowserLogin = async (
 export const getBeginBrowserLoginQueryKey = (
   params?: BeginBrowserLoginParams,
 ) => {
-  return [`/api/login`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/login`, ...(params ? [params] : [])] as const;
 };
 
 export const getBeginBrowserLoginQueryOptions = <
@@ -342,8 +638,8 @@ export const getHandleBrowserLoginCallbackUrl = (
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/callback?${stringifiedParams}`
-    : `/api/callback`;
+    ? `/api/v1/callback?${stringifiedParams}`
+    : `/api/v1/callback`;
 };
 
 export const handleBrowserLoginCallback = async (
@@ -359,7 +655,7 @@ export const handleBrowserLoginCallback = async (
 export const getHandleBrowserLoginCallbackQueryKey = (
   params?: HandleBrowserLoginCallbackParams,
 ) => {
-  return [`/api/callback`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/callback`, ...(params ? [params] : [])] as const;
 };
 
 export const getHandleBrowserLoginCallbackQueryOptions = <
@@ -432,7 +728,7 @@ export function useHandleBrowserLoginCallback<
  * @summary Clear session and begin OIDC logout
  */
 export const getLogoutBrowserSessionUrl = () => {
-  return `/api/logout`;
+  return `/api/v1/logout`;
 };
 
 export const logoutBrowserSession = async (
@@ -445,7 +741,7 @@ export const logoutBrowserSession = async (
 };
 
 export const getLogoutBrowserSessionQueryKey = () => {
-  return [`/api/logout`] as const;
+  return [`/api/v1/logout`] as const;
 };
 
 export const getLogoutBrowserSessionQueryOptions = <
@@ -507,7 +803,7 @@ export function useLogoutBrowserSession<
  * @summary Exchange a mobile OIDC code for a session token
  */
 export const getExchangeMobileAuthorizationCodeUrl = () => {
-  return `/api/mobile-auth/token-exchange`;
+  return `/api/v1/mobile-auth/token-exchange`;
 };
 
 export const exchangeMobileAuthorizationCode = async (
@@ -600,7 +896,7 @@ export const useExchangeMobileAuthorizationCode = <
  * @summary Delete a mobile session token
  */
 export const getLogoutMobileSessionUrl = () => {
-  return `/api/mobile-auth/logout`;
+  return `/api/v1/mobile-auth/logout`;
 };
 
 export const logoutMobileSession = async (
@@ -681,7 +977,7 @@ export const useLogoutMobileSession = <
  * @summary Get dashboard overview stats
  */
 export const getGetDashboardStatsUrl = () => {
-  return `/api/dashboard/stats`;
+  return `/api/v1/dashboard/stats`;
 };
 
 export const getDashboardStats = async (
@@ -694,7 +990,7 @@ export const getDashboardStats = async (
 };
 
 export const getGetDashboardStatsQueryKey = () => {
-  return [`/api/dashboard/stats`] as const;
+  return [`/api/v1/dashboard/stats`] as const;
 };
 
 export const getGetDashboardStatsQueryOptions = <
@@ -756,7 +1052,7 @@ export function useGetDashboardStats<
  * @summary Get dashboard chart data
  */
 export const getGetDashboardChartsUrl = () => {
-  return `/api/dashboard/charts`;
+  return `/api/v1/dashboard/charts`;
 };
 
 export const getDashboardCharts = async (
@@ -769,7 +1065,7 @@ export const getDashboardCharts = async (
 };
 
 export const getGetDashboardChartsQueryKey = () => {
-  return [`/api/dashboard/charts`] as const;
+  return [`/api/v1/dashboard/charts`] as const;
 };
 
 export const getGetDashboardChartsQueryOptions = <
@@ -842,8 +1138,8 @@ export const getListLeadsUrl = (params?: ListLeadsParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/leads?${stringifiedParams}`
-    : `/api/leads`;
+    ? `/api/v1/leads?${stringifiedParams}`
+    : `/api/v1/leads`;
 };
 
 export const listLeads = async (
@@ -857,7 +1153,7 @@ export const listLeads = async (
 };
 
 export const getListLeadsQueryKey = (params?: ListLeadsParams) => {
-  return [`/api/leads`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/leads`, ...(params ? [params] : [])] as const;
 };
 
 export const getListLeadsQueryOptions = <
@@ -925,7 +1221,7 @@ export function useListLeads<
  * @summary Create a new lead
  */
 export const getCreateLeadUrl = () => {
-  return `/api/leads`;
+  return `/api/v1/leads`;
 };
 
 export const createLead = async (
@@ -1011,7 +1307,7 @@ export const useCreateLead = <
  * @summary Get a lead by ID
  */
 export const getGetLeadUrl = (id: number) => {
-  return `/api/leads/${id}`;
+  return `/api/v1/leads/${id}`;
 };
 
 export const getLead = async (
@@ -1025,7 +1321,7 @@ export const getLead = async (
 };
 
 export const getGetLeadQueryKey = (id: number) => {
-  return [`/api/leads/${id}`] as const;
+  return [`/api/v1/leads/${id}`] as const;
 };
 
 export const getGetLeadQueryOptions = <
@@ -1088,7 +1384,7 @@ export function useGetLead<
  * @summary Update a lead
  */
 export const getUpdateLeadUrl = (id: number) => {
-  return `/api/leads/${id}`;
+  return `/api/v1/leads/${id}`;
 };
 
 export const updateLead = async (
@@ -1175,7 +1471,7 @@ export const useUpdateLead = <
  * @summary Delete a lead
  */
 export const getDeleteLeadUrl = (id: number) => {
-  return `/api/leads/${id}`;
+  return `/api/v1/leads/${id}`;
 };
 
 export const deleteLead = async (
@@ -1259,7 +1555,7 @@ export const useDeleteLead = <
  * @summary Import leads from Apollo or CRM
  */
 export const getImportLeadsUrl = () => {
-  return `/api/leads/import`;
+  return `/api/v1/leads/import`;
 };
 
 export const importLeads = async (
@@ -1345,7 +1641,7 @@ export const useImportLeads = <
  * @summary Verify lead emails
  */
 export const getVerifyLeadEmailsUrl = () => {
-  return `/api/leads/verify`;
+  return `/api/v1/leads/verify`;
 };
 
 export const verifyLeadEmails = async (
@@ -1442,8 +1738,8 @@ export const getListCampaignsUrl = (params?: ListCampaignsParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/campaigns?${stringifiedParams}`
-    : `/api/campaigns`;
+    ? `/api/v1/campaigns?${stringifiedParams}`
+    : `/api/v1/campaigns`;
 };
 
 export const listCampaigns = async (
@@ -1457,7 +1753,7 @@ export const listCampaigns = async (
 };
 
 export const getListCampaignsQueryKey = (params?: ListCampaignsParams) => {
-  return [`/api/campaigns`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/campaigns`, ...(params ? [params] : [])] as const;
 };
 
 export const getListCampaignsQueryOptions = <
@@ -1525,7 +1821,7 @@ export function useListCampaigns<
  * @summary Create a new campaign
  */
 export const getCreateCampaignUrl = () => {
-  return `/api/campaigns`;
+  return `/api/v1/campaigns`;
 };
 
 export const createCampaign = async (
@@ -1611,7 +1907,7 @@ export const useCreateCampaign = <
  * @summary Get a campaign by ID
  */
 export const getGetCampaignUrl = (id: number) => {
-  return `/api/campaigns/${id}`;
+  return `/api/v1/campaigns/${id}`;
 };
 
 export const getCampaign = async (
@@ -1625,7 +1921,7 @@ export const getCampaign = async (
 };
 
 export const getGetCampaignQueryKey = (id: number) => {
-  return [`/api/campaigns/${id}`] as const;
+  return [`/api/v1/campaigns/${id}`] as const;
 };
 
 export const getGetCampaignQueryOptions = <
@@ -1698,7 +1994,7 @@ export function useGetCampaign<
  * @summary Update a campaign
  */
 export const getUpdateCampaignUrl = (id: number) => {
-  return `/api/campaigns/${id}`;
+  return `/api/v1/campaigns/${id}`;
 };
 
 export const updateCampaign = async (
@@ -1785,7 +2081,7 @@ export const useUpdateCampaign = <
  * @summary Delete a campaign
  */
 export const getDeleteCampaignUrl = (id: number) => {
-  return `/api/campaigns/${id}`;
+  return `/api/v1/campaigns/${id}`;
 };
 
 export const deleteCampaign = async (
@@ -1869,7 +2165,7 @@ export const useDeleteCampaign = <
  * @summary Launch a campaign
  */
 export const getLaunchCampaignUrl = (id: number) => {
-  return `/api/campaigns/${id}/launch`;
+  return `/api/v1/campaigns/${id}/launch`;
 };
 
 export const launchCampaign = async (
@@ -1953,7 +2249,7 @@ export const useLaunchCampaign = <
  * @summary Pause a campaign
  */
 export const getPauseCampaignUrl = (id: number) => {
-  return `/api/campaigns/${id}/pause`;
+  return `/api/v1/campaigns/${id}/pause`;
 };
 
 export const pauseCampaign = async (
@@ -2037,7 +2333,7 @@ export const usePauseCampaign = <
  * @summary List email sending accounts
  */
 export const getListEmailAccountsUrl = () => {
-  return `/api/email-accounts`;
+  return `/api/v1/email-accounts`;
 };
 
 export const listEmailAccounts = async (
@@ -2050,7 +2346,7 @@ export const listEmailAccounts = async (
 };
 
 export const getListEmailAccountsQueryKey = () => {
-  return [`/api/email-accounts`] as const;
+  return [`/api/v1/email-accounts`] as const;
 };
 
 export const getListEmailAccountsQueryOptions = <
@@ -2112,7 +2408,7 @@ export function useListEmailAccounts<
  * @summary Add a new email account
  */
 export const getCreateEmailAccountUrl = () => {
-  return `/api/email-accounts`;
+  return `/api/v1/email-accounts`;
 };
 
 export const createEmailAccount = async (
@@ -2198,7 +2494,7 @@ export const useCreateEmailAccount = <
  * @summary Delete an email account
  */
 export const getDeleteEmailAccountUrl = (id: number) => {
-  return `/api/email-accounts/${id}`;
+  return `/api/v1/email-accounts/${id}`;
 };
 
 export const deleteEmailAccount = async (
@@ -2282,7 +2578,7 @@ export const useDeleteEmailAccount = <
  * @summary List all integrations
  */
 export const getListIntegrationsUrl = () => {
-  return `/api/integrations`;
+  return `/api/v1/integrations`;
 };
 
 export const listIntegrations = async (
@@ -2295,7 +2591,7 @@ export const listIntegrations = async (
 };
 
 export const getListIntegrationsQueryKey = () => {
-  return [`/api/integrations`] as const;
+  return [`/api/v1/integrations`] as const;
 };
 
 export const getListIntegrationsQueryOptions = <
@@ -2357,7 +2653,7 @@ export function useListIntegrations<
  * @summary Update integration config
  */
 export const getUpdateIntegrationUrl = (id: number) => {
-  return `/api/integrations/${id}`;
+  return `/api/v1/integrations/${id}`;
 };
 
 export const updateIntegration = async (
@@ -2457,8 +2753,8 @@ export const getGetAnalyticsOverviewUrl = (
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/analytics/overview?${stringifiedParams}`
-    : `/api/analytics/overview`;
+    ? `/api/v1/analytics/overview?${stringifiedParams}`
+    : `/api/v1/analytics/overview`;
 };
 
 export const getAnalyticsOverview = async (
@@ -2474,7 +2770,7 @@ export const getAnalyticsOverview = async (
 export const getGetAnalyticsOverviewQueryKey = (
   params?: GetAnalyticsOverviewParams,
 ) => {
-  return [`/api/analytics/overview`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/analytics/overview`, ...(params ? [params] : [])] as const;
 };
 
 export const getGetAnalyticsOverviewQueryOptions = <
@@ -2544,7 +2840,7 @@ export function useGetAnalyticsOverview<
  * @summary Get per-campaign analytics
  */
 export const getGetAnalyticsCampaignsUrl = () => {
-  return `/api/analytics/campaigns`;
+  return `/api/v1/analytics/campaigns`;
 };
 
 export const getAnalyticsCampaigns = async (
@@ -2557,7 +2853,7 @@ export const getAnalyticsCampaigns = async (
 };
 
 export const getGetAnalyticsCampaignsQueryKey = () => {
-  return [`/api/analytics/campaigns`] as const;
+  return [`/api/v1/analytics/campaigns`] as const;
 };
 
 export const getGetAnalyticsCampaignsQueryOptions = <
@@ -2619,7 +2915,7 @@ export function useGetAnalyticsCampaigns<
  * @summary Generate personalized email using AI
  */
 export const getAiPersonalizeEmailUrl = () => {
-  return `/api/ai/personalize`;
+  return `/api/v1/ai/personalize`;
 };
 
 export const aiPersonalizeEmail = async (
@@ -2705,7 +3001,7 @@ export const useAiPersonalizeEmail = <
  * @summary Generate an email sequence using AI
  */
 export const getAiGenerateSequenceUrl = () => {
-  return `/api/ai/generate-sequence`;
+  return `/api/v1/ai/generate-sequence`;
 };
 
 export const aiGenerateSequence = async (
@@ -2791,7 +3087,7 @@ export const useAiGenerateSequence = <
  * @summary Qualify a lead using AI
  */
 export const getAiQualifyLeadUrl = () => {
-  return `/api/ai/qualify-lead`;
+  return `/api/v1/ai/qualify-lead`;
 };
 
 export const aiQualifyLead = async (
@@ -2877,7 +3173,7 @@ export const useAiQualifyLead = <
  * @summary AI chat for website widget
  */
 export const getAiChatUrl = () => {
-  return `/api/ai/chat`;
+  return `/api/v1/ai/chat`;
 };
 
 export const aiChat = async (
@@ -2963,7 +3259,7 @@ export const useAiChat = <
  * @summary Generate reactivation messages using AI
  */
 export const getAiGenerateReactivationUrl = () => {
-  return `/api/ai/reactivation`;
+  return `/api/v1/ai/reactivation`;
 };
 
 export const aiGenerateReactivation = async (
@@ -3049,7 +3345,7 @@ export const useAiGenerateReactivation = <
  * @summary List knowledge base documents
  */
 export const getListKnowledgeBaseUrl = () => {
-  return `/api/knowledge-base`;
+  return `/api/v1/knowledge-base`;
 };
 
 export const listKnowledgeBase = async (
@@ -3062,7 +3358,7 @@ export const listKnowledgeBase = async (
 };
 
 export const getListKnowledgeBaseQueryKey = () => {
-  return [`/api/knowledge-base`] as const;
+  return [`/api/v1/knowledge-base`] as const;
 };
 
 export const getListKnowledgeBaseQueryOptions = <
@@ -3124,7 +3420,7 @@ export function useListKnowledgeBase<
  * @summary Upload a knowledge base document
  */
 export const getCreateKnowledgeBaseDocUrl = () => {
-  return `/api/knowledge-base`;
+  return `/api/v1/knowledge-base`;
 };
 
 export const createKnowledgeBaseDoc = async (
@@ -3211,7 +3507,7 @@ export const useCreateKnowledgeBaseDoc = <
  * @summary Delete a knowledge base document
  */
 export const getDeleteKnowledgeBaseDocUrl = (id: number) => {
-  return `/api/knowledge-base/${id}`;
+  return `/api/v1/knowledge-base/${id}`;
 };
 
 export const deleteKnowledgeBaseDoc = async (
@@ -3306,8 +3602,8 @@ export const getListAgentLogsUrl = (params?: ListAgentLogsParams) => {
   const stringifiedParams = normalizedParams.toString();
 
   return stringifiedParams.length > 0
-    ? `/api/agent-logs?${stringifiedParams}`
-    : `/api/agent-logs`;
+    ? `/api/v1/agent-logs?${stringifiedParams}`
+    : `/api/v1/agent-logs`;
 };
 
 export const listAgentLogs = async (
@@ -3321,7 +3617,7 @@ export const listAgentLogs = async (
 };
 
 export const getListAgentLogsQueryKey = (params?: ListAgentLogsParams) => {
-  return [`/api/agent-logs`, ...(params ? [params] : [])] as const;
+  return [`/api/v1/agent-logs`, ...(params ? [params] : [])] as const;
 };
 
 export const getListAgentLogsQueryOptions = <
@@ -3389,7 +3685,7 @@ export function useListAgentLogs<
  * @summary List team members
  */
 export const getListTeamMembersUrl = () => {
-  return `/api/settings/team`;
+  return `/api/v1/settings/team`;
 };
 
 export const listTeamMembers = async (
@@ -3402,7 +3698,7 @@ export const listTeamMembers = async (
 };
 
 export const getListTeamMembersQueryKey = () => {
-  return [`/api/settings/team`] as const;
+  return [`/api/v1/settings/team`] as const;
 };
 
 export const getListTeamMembersQueryOptions = <
@@ -3464,7 +3760,7 @@ export function useListTeamMembers<
  * @summary List API keys
  */
 export const getListApiKeysUrl = () => {
-  return `/api/settings/api-keys`;
+  return `/api/v1/settings/api-keys`;
 };
 
 export const listApiKeys = async (options?: RequestInit): Promise<ApiKey[]> => {
@@ -3475,7 +3771,7 @@ export const listApiKeys = async (options?: RequestInit): Promise<ApiKey[]> => {
 };
 
 export const getListApiKeysQueryKey = () => {
-  return [`/api/settings/api-keys`] as const;
+  return [`/api/v1/settings/api-keys`] as const;
 };
 
 export const getListApiKeysQueryOptions = <
@@ -3537,7 +3833,7 @@ export function useListApiKeys<
  * @summary Create a new API key
  */
 export const getCreateApiKeyUrl = () => {
-  return `/api/settings/api-keys`;
+  return `/api/v1/settings/api-keys`;
 };
 
 export const createApiKey = async (
@@ -3623,7 +3919,7 @@ export const useCreateApiKey = <
  * @summary Delete an API key
  */
 export const getDeleteApiKeyUrl = (id: number) => {
-  return `/api/settings/api-keys/${id}`;
+  return `/api/v1/settings/api-keys/${id}`;
 };
 
 export const deleteApiKey = async (
@@ -3707,7 +4003,7 @@ export const useDeleteApiKey = <
  * @summary List prompt templates
  */
 export const getListPromptTemplatesUrl = () => {
-  return `/api/settings/prompt-templates`;
+  return `/api/v1/settings/prompt-templates`;
 };
 
 export const listPromptTemplates = async (
@@ -3720,7 +4016,7 @@ export const listPromptTemplates = async (
 };
 
 export const getListPromptTemplatesQueryKey = () => {
-  return [`/api/settings/prompt-templates`] as const;
+  return [`/api/v1/settings/prompt-templates`] as const;
 };
 
 export const getListPromptTemplatesQueryOptions = <
@@ -3782,7 +4078,7 @@ export function useListPromptTemplates<
  * @summary Create a prompt template
  */
 export const getCreatePromptTemplateUrl = () => {
-  return `/api/settings/prompt-templates`;
+  return `/api/v1/settings/prompt-templates`;
 };
 
 export const createPromptTemplate = async (
@@ -3869,7 +4165,7 @@ export const useCreatePromptTemplate = <
  * @summary Update a prompt template
  */
 export const getUpdatePromptTemplateUrl = (id: number) => {
-  return `/api/settings/prompt-templates/${id}`;
+  return `/api/v1/settings/prompt-templates/${id}`;
 };
 
 export const updatePromptTemplate = async (
@@ -3957,7 +4253,7 @@ export const useUpdatePromptTemplate = <
  * @summary Delete a prompt template
  */
 export const getDeletePromptTemplateUrl = (id: number) => {
-  return `/api/settings/prompt-templates/${id}`;
+  return `/api/v1/settings/prompt-templates/${id}`;
 };
 
 export const deletePromptTemplate = async (
@@ -4035,4 +4331,1207 @@ export const useDeletePromptTemplate = <
   TContext
 > => {
   return useMutation(getDeletePromptTemplateMutationOptions(options));
+};
+
+/**
+ * @summary Create outbound import job
+ */
+export const getCreateOutboundImportJobUrl = () => {
+  return `/api/v1/outbound/jobs/import`;
+};
+
+export const createOutboundImportJob = async (
+  outboundImportJobBody: OutboundImportJobBody,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getCreateOutboundImportJobUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundImportJobBody),
+  });
+};
+
+export const getCreateOutboundImportJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundImportJob>>,
+    TError,
+    { data: BodyType<OutboundImportJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOutboundImportJob>>,
+  TError,
+  { data: BodyType<OutboundImportJobBody> },
+  TContext
+> => {
+  const mutationKey = ["createOutboundImportJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOutboundImportJob>>,
+    { data: BodyType<OutboundImportJobBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOutboundImportJob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOutboundImportJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOutboundImportJob>>
+>;
+export type CreateOutboundImportJobMutationBody =
+  BodyType<OutboundImportJobBody>;
+export type CreateOutboundImportJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create outbound import job
+ */
+export const useCreateOutboundImportJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundImportJob>>,
+    TError,
+    { data: BodyType<OutboundImportJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOutboundImportJob>>,
+  TError,
+  { data: BodyType<OutboundImportJobBody> },
+  TContext
+> => {
+  return useMutation(getCreateOutboundImportJobMutationOptions(options));
+};
+
+/**
+ * @summary Create outbound enrichment job
+ */
+export const getCreateOutboundEnrichJobUrl = () => {
+  return `/api/v1/outbound/jobs/enrich`;
+};
+
+export const createOutboundEnrichJob = async (
+  outboundLeadIdsJobBody: OutboundLeadIdsJobBody,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getCreateOutboundEnrichJobUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundLeadIdsJobBody),
+  });
+};
+
+export const getCreateOutboundEnrichJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundEnrichJob>>,
+    TError,
+    { data: BodyType<OutboundLeadIdsJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOutboundEnrichJob>>,
+  TError,
+  { data: BodyType<OutboundLeadIdsJobBody> },
+  TContext
+> => {
+  const mutationKey = ["createOutboundEnrichJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOutboundEnrichJob>>,
+    { data: BodyType<OutboundLeadIdsJobBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOutboundEnrichJob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOutboundEnrichJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOutboundEnrichJob>>
+>;
+export type CreateOutboundEnrichJobMutationBody =
+  BodyType<OutboundLeadIdsJobBody>;
+export type CreateOutboundEnrichJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create outbound enrichment job
+ */
+export const useCreateOutboundEnrichJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundEnrichJob>>,
+    TError,
+    { data: BodyType<OutboundLeadIdsJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOutboundEnrichJob>>,
+  TError,
+  { data: BodyType<OutboundLeadIdsJobBody> },
+  TContext
+> => {
+  return useMutation(getCreateOutboundEnrichJobMutationOptions(options));
+};
+
+/**
+ * @summary Create outbound verification job
+ */
+export const getCreateOutboundVerifyJobUrl = () => {
+  return `/api/v1/outbound/jobs/verify`;
+};
+
+export const createOutboundVerifyJob = async (
+  outboundLeadIdsJobBody: OutboundLeadIdsJobBody,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getCreateOutboundVerifyJobUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundLeadIdsJobBody),
+  });
+};
+
+export const getCreateOutboundVerifyJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundVerifyJob>>,
+    TError,
+    { data: BodyType<OutboundLeadIdsJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOutboundVerifyJob>>,
+  TError,
+  { data: BodyType<OutboundLeadIdsJobBody> },
+  TContext
+> => {
+  const mutationKey = ["createOutboundVerifyJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOutboundVerifyJob>>,
+    { data: BodyType<OutboundLeadIdsJobBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOutboundVerifyJob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOutboundVerifyJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOutboundVerifyJob>>
+>;
+export type CreateOutboundVerifyJobMutationBody =
+  BodyType<OutboundLeadIdsJobBody>;
+export type CreateOutboundVerifyJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create outbound verification job
+ */
+export const useCreateOutboundVerifyJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundVerifyJob>>,
+    TError,
+    { data: BodyType<OutboundLeadIdsJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOutboundVerifyJob>>,
+  TError,
+  { data: BodyType<OutboundLeadIdsJobBody> },
+  TContext
+> => {
+  return useMutation(getCreateOutboundVerifyJobMutationOptions(options));
+};
+
+/**
+ * @summary Create outbound personalization job
+ */
+export const getCreateOutboundPersonalizeJobUrl = () => {
+  return `/api/v1/outbound/jobs/personalize`;
+};
+
+export const createOutboundPersonalizeJob = async (
+  outboundPersonalizeJobBody: OutboundPersonalizeJobBody,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getCreateOutboundPersonalizeJobUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundPersonalizeJobBody),
+  });
+};
+
+export const getCreateOutboundPersonalizeJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundPersonalizeJob>>,
+    TError,
+    { data: BodyType<OutboundPersonalizeJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOutboundPersonalizeJob>>,
+  TError,
+  { data: BodyType<OutboundPersonalizeJobBody> },
+  TContext
+> => {
+  const mutationKey = ["createOutboundPersonalizeJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOutboundPersonalizeJob>>,
+    { data: BodyType<OutboundPersonalizeJobBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOutboundPersonalizeJob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOutboundPersonalizeJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOutboundPersonalizeJob>>
+>;
+export type CreateOutboundPersonalizeJobMutationBody =
+  BodyType<OutboundPersonalizeJobBody>;
+export type CreateOutboundPersonalizeJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Create outbound personalization job
+ */
+export const useCreateOutboundPersonalizeJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundPersonalizeJob>>,
+    TError,
+    { data: BodyType<OutboundPersonalizeJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOutboundPersonalizeJob>>,
+  TError,
+  { data: BodyType<OutboundPersonalizeJobBody> },
+  TContext
+> => {
+  return useMutation(getCreateOutboundPersonalizeJobMutationOptions(options));
+};
+
+/**
+ * @summary Launch outbound campaign through provider
+ */
+export const getCreateOutboundLaunchJobUrl = () => {
+  return `/api/v1/outbound/jobs/launch`;
+};
+
+export const createOutboundLaunchJob = async (
+  outboundLaunchJobBody: OutboundLaunchJobBody,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getCreateOutboundLaunchJobUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundLaunchJobBody),
+  });
+};
+
+export const getCreateOutboundLaunchJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundLaunchJob>>,
+    TError,
+    { data: BodyType<OutboundLaunchJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof createOutboundLaunchJob>>,
+  TError,
+  { data: BodyType<OutboundLaunchJobBody> },
+  TContext
+> => {
+  const mutationKey = ["createOutboundLaunchJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof createOutboundLaunchJob>>,
+    { data: BodyType<OutboundLaunchJobBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return createOutboundLaunchJob(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type CreateOutboundLaunchJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof createOutboundLaunchJob>>
+>;
+export type CreateOutboundLaunchJobMutationBody =
+  BodyType<OutboundLaunchJobBody>;
+export type CreateOutboundLaunchJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Launch outbound campaign through provider
+ */
+export const useCreateOutboundLaunchJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof createOutboundLaunchJob>>,
+    TError,
+    { data: BodyType<OutboundLaunchJobBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof createOutboundLaunchJob>>,
+  TError,
+  { data: BodyType<OutboundLaunchJobBody> },
+  TContext
+> => {
+  return useMutation(getCreateOutboundLaunchJobMutationOptions(options));
+};
+
+/**
+ * @summary Retry an existing outbound job
+ */
+export const getRetryOutboundJobUrl = (id: number) => {
+  return `/api/v1/outbound/jobs/${id}/retry`;
+};
+
+export const retryOutboundJob = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OutboundJobResult> => {
+  return customFetch<OutboundJobResult>(getRetryOutboundJobUrl(id), {
+    ...options,
+    method: "POST",
+  });
+};
+
+export const getRetryOutboundJobMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retryOutboundJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof retryOutboundJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  const mutationKey = ["retryOutboundJob"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof retryOutboundJob>>,
+    { id: number }
+  > = (props) => {
+    const { id } = props ?? {};
+
+    return retryOutboundJob(id, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RetryOutboundJobMutationResult = NonNullable<
+  Awaited<ReturnType<typeof retryOutboundJob>>
+>;
+
+export type RetryOutboundJobMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Retry an existing outbound job
+ */
+export const useRetryOutboundJob = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof retryOutboundJob>>,
+    TError,
+    { id: number },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof retryOutboundJob>>,
+  TError,
+  { id: number },
+  TContext
+> => {
+  return useMutation(getRetryOutboundJobMutationOptions(options));
+};
+
+/**
+ * @summary Get outbound job status
+ */
+export const getGetOutboundJobUrl = (id: number) => {
+  return `/api/v1/outbound/jobs/${id}`;
+};
+
+export const getOutboundJob = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OutboundJob> => {
+  return customFetch<OutboundJob>(getGetOutboundJobUrl(id), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOutboundJobQueryKey = (id: number) => {
+  return [`/api/v1/outbound/jobs/${id}`] as const;
+};
+
+export const getGetOutboundJobQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOutboundJob>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOutboundJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetOutboundJobQueryKey(id);
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getOutboundJob>>> = ({
+    signal,
+  }) => getOutboundJob(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundJob>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOutboundJobQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOutboundJob>>
+>;
+export type GetOutboundJobQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get outbound job status
+ */
+
+export function useGetOutboundJob<
+  TData = Awaited<ReturnType<typeof getOutboundJob>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOutboundJob>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOutboundJobQueryOptions(id, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get outbound lead pipeline counts
+ */
+export const getGetOutboundLeadPipelineUrl = () => {
+  return `/api/v1/outbound/leads/pipeline`;
+};
+
+export const getOutboundLeadPipeline = async (
+  options?: RequestInit,
+): Promise<OutboundPipelineStats> => {
+  return customFetch<OutboundPipelineStats>(getGetOutboundLeadPipelineUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetOutboundLeadPipelineQueryKey = () => {
+  return [`/api/v1/outbound/leads/pipeline`] as const;
+};
+
+export const getGetOutboundLeadPipelineQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOutboundLeadPipeline>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundLeadPipeline>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOutboundLeadPipelineQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOutboundLeadPipeline>>
+  > = ({ signal }) => getOutboundLeadPipeline({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundLeadPipeline>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOutboundLeadPipelineQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOutboundLeadPipeline>>
+>;
+export type GetOutboundLeadPipelineQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get outbound lead pipeline counts
+ */
+
+export function useGetOutboundLeadPipeline<
+  TData = Awaited<ReturnType<typeof getOutboundLeadPipeline>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundLeadPipeline>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOutboundLeadPipelineQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get frozen Phase 1 outbound provider and KPI config
+ */
+export const getGetOutboundPhaseOneConfigUrl = () => {
+  return `/api/v1/outbound/config`;
+};
+
+export const getOutboundPhaseOneConfig = async (
+  options?: RequestInit,
+): Promise<OutboundPhaseOneConfig> => {
+  return customFetch<OutboundPhaseOneConfig>(
+    getGetOutboundPhaseOneConfigUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetOutboundPhaseOneConfigQueryKey = () => {
+  return [`/api/v1/outbound/config`] as const;
+};
+
+export const getGetOutboundPhaseOneConfigQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOutboundPhaseOneConfigQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>
+  > = ({ signal }) => getOutboundPhaseOneConfig({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOutboundPhaseOneConfigQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>
+>;
+export type GetOutboundPhaseOneConfigQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get frozen Phase 1 outbound provider and KPI config
+ */
+
+export function useGetOutboundPhaseOneConfig<
+  TData = Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundPhaseOneConfig>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOutboundPhaseOneConfigQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get outbound campaign performance
+ */
+export const getGetOutboundCampaignPerformanceUrl = (id: number) => {
+  return `/api/v1/outbound/campaigns/${id}/performance`;
+};
+
+export const getOutboundCampaignPerformance = async (
+  id: number,
+  options?: RequestInit,
+): Promise<OutboundCampaignPerformance> => {
+  return customFetch<OutboundCampaignPerformance>(
+    getGetOutboundCampaignPerformanceUrl(id),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetOutboundCampaignPerformanceQueryKey = (id: number) => {
+  return [`/api/v1/outbound/campaigns/${id}/performance`] as const;
+};
+
+export const getGetOutboundCampaignPerformanceQueryOptions = <
+  TData = Awaited<ReturnType<typeof getOutboundCampaignPerformance>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOutboundCampaignPerformance>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetOutboundCampaignPerformanceQueryKey(id);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getOutboundCampaignPerformance>>
+  > = ({ signal }) =>
+    getOutboundCampaignPerformance(id, { signal, ...requestOptions });
+
+  return {
+    queryKey,
+    queryFn,
+    enabled: !!id,
+    ...queryOptions,
+  } as UseQueryOptions<
+    Awaited<ReturnType<typeof getOutboundCampaignPerformance>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetOutboundCampaignPerformanceQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getOutboundCampaignPerformance>>
+>;
+export type GetOutboundCampaignPerformanceQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get outbound campaign performance
+ */
+
+export function useGetOutboundCampaignPerformance<
+  TData = Awaited<ReturnType<typeof getOutboundCampaignPerformance>>,
+  TError = ErrorType<unknown>,
+>(
+  id: number,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getOutboundCampaignPerformance>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetOutboundCampaignPerformanceQueryOptions(
+    id,
+    options,
+  );
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Run pilot KPI validation for one campaign
+ */
+export const getRunOutboundPilotUrl = () => {
+  return `/api/v1/outbound/pilot/run`;
+};
+
+export const runOutboundPilot = async (
+  outboundPilotRunBody: OutboundPilotRunBody,
+  options?: RequestInit,
+): Promise<OutboundPilotRunResult> => {
+  return customFetch<OutboundPilotRunResult>(getRunOutboundPilotUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundPilotRunBody),
+  });
+};
+
+export const getRunOutboundPilotMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runOutboundPilot>>,
+    TError,
+    { data: BodyType<OutboundPilotRunBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runOutboundPilot>>,
+  TError,
+  { data: BodyType<OutboundPilotRunBody> },
+  TContext
+> => {
+  const mutationKey = ["runOutboundPilot"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runOutboundPilot>>,
+    { data: BodyType<OutboundPilotRunBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runOutboundPilot(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunOutboundPilotMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runOutboundPilot>>
+>;
+export type RunOutboundPilotMutationBody = BodyType<OutboundPilotRunBody>;
+export type RunOutboundPilotMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Run pilot KPI validation for one campaign
+ */
+export const useRunOutboundPilot = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runOutboundPilot>>,
+    TError,
+    { data: BodyType<OutboundPilotRunBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runOutboundPilot>>,
+  TError,
+  { data: BodyType<OutboundPilotRunBody> },
+  TContext
+> => {
+  return useMutation(getRunOutboundPilotMutationOptions(options));
+};
+
+/**
+ * Automates IMPORT -> ENRICH -> VERIFY -> PERSONALIZE -> LAUNCH
+ * @summary End to end sequence of outbound operations in a single background job
+ */
+export const getRunAllOutboundPipelineUrl = () => {
+  return `/api/v1/outbound/jobs/run-all`;
+};
+
+export const runAllOutboundPipeline = async (
+  outboundRunAllBody: OutboundRunAllBody,
+  options?: RequestInit,
+): Promise<JobQueuedResult> => {
+  return customFetch<JobQueuedResult>(getRunAllOutboundPipelineUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(outboundRunAllBody),
+  });
+};
+
+export const getRunAllOutboundPipelineMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    TError,
+    { data: BodyType<OutboundRunAllBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+  TError,
+  { data: BodyType<OutboundRunAllBody> },
+  TContext
+> => {
+  const mutationKey = ["runAllOutboundPipeline"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    { data: BodyType<OutboundRunAllBody> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return runAllOutboundPipeline(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RunAllOutboundPipelineMutationResult = NonNullable<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>
+>;
+export type RunAllOutboundPipelineMutationBody = BodyType<OutboundRunAllBody>;
+export type RunAllOutboundPipelineMutationError = ErrorType<unknown>;
+
+/**
+ * @summary End to end sequence of outbound operations in a single background job
+ */
+export const useRunAllOutboundPipeline = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+    TError,
+    { data: BodyType<OutboundRunAllBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof runAllOutboundPipeline>>,
+  TError,
+  { data: BodyType<OutboundRunAllBody> },
+  TContext
+> => {
+  return useMutation(getRunAllOutboundPipelineMutationOptions(options));
+};
+
+/**
+ * @summary Ingest outbound provider webhook events
+ */
+export const getIngestSendingWebhookUrl = (provider: string) => {
+  return `/api/v1/webhooks/sending/${provider}`;
+};
+
+export const ingestSendingWebhook = async (
+  provider: string,
+  webhookEventBody: WebhookEventBody,
+  options?: RequestInit,
+): Promise<WebhookAck> => {
+  return customFetch<WebhookAck>(getIngestSendingWebhookUrl(provider), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(webhookEventBody),
+  });
+};
+
+export const getIngestSendingWebhookMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestSendingWebhook>>,
+    TError,
+    { provider: string; data: BodyType<WebhookEventBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ingestSendingWebhook>>,
+  TError,
+  { provider: string; data: BodyType<WebhookEventBody> },
+  TContext
+> => {
+  const mutationKey = ["ingestSendingWebhook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ingestSendingWebhook>>,
+    { provider: string; data: BodyType<WebhookEventBody> }
+  > = (props) => {
+    const { provider, data } = props ?? {};
+
+    return ingestSendingWebhook(provider, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IngestSendingWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ingestSendingWebhook>>
+>;
+export type IngestSendingWebhookMutationBody = BodyType<WebhookEventBody>;
+export type IngestSendingWebhookMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ingest outbound provider webhook events
+ */
+export const useIngestSendingWebhook = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestSendingWebhook>>,
+    TError,
+    { provider: string; data: BodyType<WebhookEventBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ingestSendingWebhook>>,
+  TError,
+  { provider: string; data: BodyType<WebhookEventBody> },
+  TContext
+> => {
+  return useMutation(getIngestSendingWebhookMutationOptions(options));
+};
+
+/**
+ * @summary Ingest CRM event webhook
+ */
+export const getIngestCrmWebhookUrl = (provider: string) => {
+  return `/api/v1/webhooks/crm/${provider}`;
+};
+
+export const ingestCrmWebhook = async (
+  provider: string,
+  webhookEventBody: WebhookEventBody,
+  options?: RequestInit,
+): Promise<WebhookAck> => {
+  return customFetch<WebhookAck>(getIngestCrmWebhookUrl(provider), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(webhookEventBody),
+  });
+};
+
+export const getIngestCrmWebhookMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestCrmWebhook>>,
+    TError,
+    { provider: string; data: BodyType<WebhookEventBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof ingestCrmWebhook>>,
+  TError,
+  { provider: string; data: BodyType<WebhookEventBody> },
+  TContext
+> => {
+  const mutationKey = ["ingestCrmWebhook"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof ingestCrmWebhook>>,
+    { provider: string; data: BodyType<WebhookEventBody> }
+  > = (props) => {
+    const { provider, data } = props ?? {};
+
+    return ingestCrmWebhook(provider, data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type IngestCrmWebhookMutationResult = NonNullable<
+  Awaited<ReturnType<typeof ingestCrmWebhook>>
+>;
+export type IngestCrmWebhookMutationBody = BodyType<WebhookEventBody>;
+export type IngestCrmWebhookMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Ingest CRM event webhook
+ */
+export const useIngestCrmWebhook = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof ingestCrmWebhook>>,
+    TError,
+    { provider: string; data: BodyType<WebhookEventBody> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof ingestCrmWebhook>>,
+  TError,
+  { provider: string; data: BodyType<WebhookEventBody> },
+  TContext
+> => {
+  return useMutation(getIngestCrmWebhookMutationOptions(options));
 };

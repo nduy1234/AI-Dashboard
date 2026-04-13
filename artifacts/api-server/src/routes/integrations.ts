@@ -7,11 +7,15 @@ import {
   UpdateIntegrationBody,
   UpdateIntegrationResponse,
 } from "@workspace/api-zod";
+import { getOwnerContext, ownerScope } from "../security/ownerContext";
+import { testSlackConnection } from "../lib/slackClient";
+import { testCalcomConnection } from "../lib/calcomClient";
+import { loadApolloEndpointsConfig } from "@workspace/agent-orchestration";
 
 const router: IRouter = Router();
 
 function ownerFilter(req: Express.Request) {
-  return req.orgId ? eq(integrationsTable.orgId, req.orgId) : eq(integrationsTable.userId, req.user!.id);
+  return ownerScope(integrationsTable, getOwnerContext(req));
 }
 
 router.get("/integrations", async (req, res): Promise<void> => {
@@ -19,6 +23,26 @@ router.get("/integrations", async (req, res): Promise<void> => {
     .where(ownerFilter(req))
     .orderBy(integrationsTable.name);
   res.json(ListIntegrationsResponse.parse(integrations));
+});
+
+/**
+ * GET /api/v1/integrations/apollo/endpoints
+ * Returns the allowed Apollo API paths from lib/agent-orchestration/config/apollo-endpoints.json
+ * (no API keys). Edit that file to match your Apollo plan.
+ */
+router.get("/integrations/apollo/endpoints", async (req, res): Promise<void> => {
+  const owner = getOwnerContext(req);
+  if (!owner) {
+    res.status(401).json({ error: "Not authenticated" });
+    return;
+  }
+  try {
+    res.json(loadApolloEndpointsConfig());
+  } catch (e) {
+    res.status(500).json({
+      error: e instanceof Error ? e.message : "Failed to load Apollo endpoints config",
+    });
+  }
 });
 
 router.patch("/integrations/:id", async (req, res): Promise<void> => {
@@ -32,6 +56,76 @@ router.patch("/integrations/:id", async (req, res): Promise<void> => {
   const [integration] = await db.update(integrationsTable).set(setData).where(and(eq(integrationsTable.id, params.data.id), ownerFilter(req))).returning();
   if (!integration) { res.status(404).json({ error: "Integration not found" }); return; }
   res.json(UpdateIntegrationResponse.parse(integration));
+});
+
+router.post("/integrations/slack/test", async (req, res): Promise<void> => {
+  try {
+    const owner = getOwnerContext(req);
+    const status = await testSlackConnection();
+
+    const [integration] = await db
+      .update(integrationsTable)
+      .set({
+        status: "connected",
+        apiKeyConfigured: Boolean(process.env.SLACK_WEBHOOK_URL || process.env.SLACK_BOT_TOKEN),
+        lastSyncAt: new Date(),
+        config: {
+          mode: status.mode,
+          channel: process.env.SLACK_NOTIFY_CHANNEL ?? "#outbound-alerts",
+          team: status.team ?? null,
+        },
+      })
+      .where(and(eq(integrationsTable.type, "slack"), ownerScope(integrationsTable, owner)))
+      .returning();
+
+    if (!integration) {
+      res.status(404).json({ error: "Slack integration record not found for current owner" });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      integration: UpdateIntegrationResponse.parse(integration),
+      status,
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Slack connectivity test failed",
+    });
+  }
+});
+
+router.post("/integrations/calcom/test", async (req, res): Promise<void> => {
+  try {
+    const owner = getOwnerContext(req);
+    await testCalcomConnection();
+
+    const [integration] = await db
+      .update(integrationsTable)
+      .set({
+        status: "connected",
+        apiKeyConfigured: Boolean(process.env.CALCOM_API_KEY),
+        lastSyncAt: new Date(),
+      })
+      .where(and(eq(integrationsTable.type, "calcom"), ownerScope(integrationsTable, owner)))
+      .returning();
+
+    if (!integration) {
+      res.status(404).json({ error: "Cal.com integration record not found for current owner" });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      integration: UpdateIntegrationResponse.parse(integration),
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "Cal.com connectivity test failed",
+    });
+  }
 });
 
 export default router;

@@ -14,6 +14,7 @@ import {
   UpdatePromptTemplateResponse,
   DeletePromptTemplateParams,
 } from "@workspace/api-zod";
+import { getOwnerContext, ownerScope } from "../security/ownerContext";
 
 const router: IRouter = Router();
 
@@ -47,7 +48,7 @@ router.get("/settings/team", async (req, res): Promise<void> => {
 });
 
 function apiKeyOwnerFilter(req: Express.Request) {
-  return req.orgId ? eq(apiKeysTable.orgId, req.orgId) : eq(apiKeysTable.userId, req.user!.id);
+  return ownerScope(apiKeysTable, getOwnerContext(req));
 }
 
 router.get("/settings/api-keys", async (req, res): Promise<void> => {
@@ -74,7 +75,7 @@ router.delete("/settings/api-keys/:id", async (req, res): Promise<void> => {
 });
 
 function promptOwnerFilter(req: Express.Request) {
-  return req.orgId ? eq(promptTemplatesTable.orgId, req.orgId) : eq(promptTemplatesTable.userId, req.user!.id);
+  return ownerScope(promptTemplatesTable, getOwnerContext(req));
 }
 
 router.get("/settings/prompt-templates", async (req, res): Promise<void> => {

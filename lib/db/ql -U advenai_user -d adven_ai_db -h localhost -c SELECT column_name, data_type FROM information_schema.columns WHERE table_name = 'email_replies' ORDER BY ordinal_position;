@@ -1,0 +1,20 @@
+                                          Table "public.email_replies"
+      Column      |           Type           | Collation | Nullable |                  Default                  
+------------------+--------------------------+-----------+----------+-------------------------------------------
+ id               | integer                  |           | not null | nextval('email_replies_id_seq'::regclass)
+ campaign_id      | integer                  |           |          | 
+ lead_id          | integer                  |           |          | 
+ sending_event_id | integer                  |           |          | 
+ provider         | character varying(64)    |           | not null | 
+ from_email       | character varying(512)   |           |          | 
+ subject          | text                     |           |          | 
+ text_body        | text                     |           |          | 
+ html_body        | text                     |           |          | 
+ resend_email_id  | character varying(255)   |           |          | 
+ message_id       | character varying(512)   |           |          | 
+ sentiment        | character varying(32)    |           | not null | 'unknown'::character varying
+ received_at      | timestamp with time zone |           | not null | now()
+ created_at       | timestamp with time zone |           | not null | now()
+Indexes:
+    "email_replies_pkey" PRIMARY KEY, btree (id)
+

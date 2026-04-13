@@ -1,0 +1,86 @@
+{
+  "description": "Apollo API endpoints configuration. See https://docs.apollo.io/reference for full docs.",
+  "planInfo": {
+    "free": "Limited data access. Endpoints: contacts/search (basic filters only)",
+    "pro": "Full data access + org_top_people endpoint",
+    "enterprise": "All endpoints + higher rate limits"
+  },
+  "currentPlan": "free",
+  "tips": "If getting 0 results on free tier: (1) Check Apollo dashboard for available data, (2) Try broader job titles, (3) Add industry filters, (4) Upgrade to pro plan for org_top_people endpoint",
+  "allowedEndpoints": [
+    { "path": "/api/v1/contacts/search", "category": "contacts", "method": "POST" },
+    { "path": "/api/v1/contacts", "category": "contacts", "method": "POST" },
+    { "path": "/api/v1/contacts/{id}", "category": "contacts", "method": "PATCH" },
+    { "path": "/api/v1/contacts/bulk_create", "category": "contacts", "method": "POST" },
+    { "path": "/api/v1/contacts/bulk_update", "category": "contacts", "method": "POST" },
+    { "path": "/api/v1/contacts/{id}/view", "category": "contacts", "method": "GET" },
+    { "path": "/api/v1/contacts/stages", "category": "contacts", "method": "GET" },
+    { "path": "/api/v1/accounts/search", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts/{id}", "category": "accounts", "method": "PATCH" },
+    { "path": "/api/v1/accounts/bulk_create", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts/bulk_update", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts/{id}/view", "category": "accounts", "method": "GET" },
+    { "path": "/api/v1/accounts/update_stage", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts/update_owner", "category": "accounts", "method": "POST" },
+    { "path": "/api/v1/accounts/stages", "category": "accounts", "method": "GET" },
+    { "path": "/api/v1/organizations/search", "category": "organizations", "method": "POST" },
+    { "path": "/api/v1/organizations/enrich", "category": "organizations", "method": "GET" },
+    { "path": "/api/v1/organizations/bulk_enrich", "category": "organizations", "method": "POST" },
+    { "path": "/api/v1/organizations/{id}/job_postings", "category": "organizations", "method": "GET" },
+    { "path": "/api/v1/organizations/{id}", "category": "organizations", "method": "GET" },
+    { "path": "/api/v1/people/enrichment", "category": "people", "method": "POST" },
+    { "path": "/api/v1/people/bulk_enrichment", "category": "people", "method": "POST" },
+    { "path": "/api/v1/news/search", "category": "news", "method": "POST" },
+    { "path": "/api/v1/deals", "category": "deals", "method": "POST" },
+    { "path": "/api/v1/deals", "category": "deals", "method": "GET" },
+    { "path": "/api/v1/deals/{id}", "category": "deals", "method": "GET" },
+    { "path": "/api/v1/deals/{id}", "category": "deals", "method": "PATCH" },
+    { "path": "/api/v1/deals/stages", "category": "deals", "method": "GET" },
+    { "path": "/api/v1/tasks", "category": "tasks", "method": "POST" },
+    { "path": "/api/v1/tasks/bulk_create", "category": "tasks", "method": "POST" },
+    { "path": "/api/v1/tasks/search", "category": "tasks", "method": "POST" },
+    { "path": "/api/v1/calls", "category": "calls", "method": "POST" },
+    { "path": "/api/v1/calls/search", "category": "calls", "method": "GET" },
+    { "path": "/api/v1/calls/{id}", "category": "calls", "method": "PUT" },
+    { "path": "/api/v1/sequences/search", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/sequences/{id}/add_contacts", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/sequences/{id}/update_contact_status", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/sequences/{id}/activate", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/sequences/{id}/deactivate", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/sequences/{id}/archive", "category": "sequences", "method": "POST" },
+    { "path": "/api/v1/outreach_emails/search", "category": "outreach", "method": "GET" },
+    { "path": "/api/v1/outreach_emails/stats", "category": "outreach", "method": "GET" },
+    { "path": "/api/v1/api_sessions", "category": "miscellaneous", "method": "POST" },
+    { "path": "/api/v1/users", "category": "miscellaneous", "method": "GET" },
+    { "path": "/api/v1/email_accounts", "category": "miscellaneous", "method": "GET" },
+    { "path": "/api/v1/lists", "category": "miscellaneous", "method": "GET" },
+    { "path": "/api/v1/fields", "category": "miscellaneous", "method": "GET" },
+    { "path": "/api/v1/custom_fields", "category": "miscellaneous", "method": "GET" },
+    { "path": "/api/v1/custom_fields", "category": "miscellaneous", "method": "POST" },
+    { "path": "/api/v1/notes", "category": "miscellaneous", "method": "GET" }
+  ],
+  "peopleSearch": {
+    "method": "POST",
+    "endpoints": [
+      {
+        "path": "/api/v1/contacts/search",
+        "strategy": "people_filters",
+        "notes": "Free tier: searches contacts already saved in your Apollo account. Returns 0 for fresh accounts with no saved contacts."
+      }
+    ]
+  },
+  "premiumEndpoints": [
+    {
+      "path": "/api/v1/mixed_people/search",
+      "strategy": "people_filters",
+      "notes": "PAID ONLY: Searches Apollo full 250M+ people database. Requires Pro plan."
+    }
+  ],
+  "enrichmentEndpoints": {
+    "people": "/api/v1/people/enrichment",
+    "people_bulk": "/api/v1/people/bulk_enrichment",
+    "organization": "/api/v1/organizations/enrich",
+    "organization_bulk": "/api/v1/organizations/bulk_enrich"
+  }
+}

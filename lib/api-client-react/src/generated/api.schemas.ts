@@ -9,6 +9,24 @@ export interface HealthStatus {
   status: string;
 }
 
+export type OutboundRunAllBodyFilters = { [key: string]: unknown };
+
+export interface OutboundRunAllBody {
+  source?: string;
+  campaignId: number;
+  filters?: OutboundRunAllBodyFilters;
+  enrichProvider?: string;
+  verifyProvider?: string;
+  personalizeProvider?: string;
+  launchProvider?: string;
+  dailyCap?: number;
+}
+
+export interface JobQueuedResult {
+  jobId: number;
+  status: string;
+}
+
 export interface AuthUser {
   id: string;
   /** @nullable */
@@ -23,6 +41,37 @@ export interface AuthUser {
 
 export interface AuthUserEnvelope {
   user: AuthUser | null;
+}
+
+export interface GoogleAuthStartResponse {
+  authUrl: string;
+  state: string;
+}
+
+export interface GoogleAuthExchangeRequest {
+  /** @minLength 1 */
+  code: string;
+  /** @minLength 1 */
+  state: string;
+  redirectUri: string;
+}
+
+export interface AuthRefreshRequest {
+  refreshToken?: string;
+}
+
+export type AuthTokenExchangeResponseTokenType =
+  (typeof AuthTokenExchangeResponseTokenType)[keyof typeof AuthTokenExchangeResponseTokenType];
+
+export const AuthTokenExchangeResponseTokenType = {
+  Bearer: "Bearer",
+} as const;
+
+export interface AuthTokenExchangeResponse {
+  accessToken: string;
+  refreshToken: string;
+  tokenType: AuthTokenExchangeResponseTokenType;
+  user: AuthUser;
 }
 
 export interface MobileTokenExchangeRequest {
@@ -58,6 +107,14 @@ export interface DashboardStats {
   meetingsBooked: number;
   reactivatedLeads: number;
   websiteConversions: number;
+  trends?: {
+    totalProspects: number | null;
+    emailsSent: number | null;
+    replyRate: number | null;
+    meetingsBooked: number | null;
+    reactivatedLeads: number | null;
+    websiteConversions: number | null;
+  };
 }
 
 export interface ChartDataPoint {
@@ -427,7 +484,230 @@ export interface UpdatePromptTemplateBody {
   template?: string;
 }
 
+export interface OutboundLeadInput {
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string;
+  title: string;
+  industry?: string;
+  companySize?: string;
+  linkedinUrl?: string;
+  notes?: string;
+}
+
+/**
+ * How leads are being supplied:
+- `api` — pulled live from a provider API (e.g. Apollo)
+- `export` — uploaded as a CSV / bulk list
+- `manual` — inline `leads` array in the request body
+
+ */
+export type OutboundImportJobBodyImportType =
+  (typeof OutboundImportJobBodyImportType)[keyof typeof OutboundImportJobBodyImportType];
+
+export const OutboundImportJobBodyImportType = {
+  api: "api",
+  export: "export",
+  manual: "manual",
+} as const;
+
+/**
+ * Which Apollo API endpoint to call. Only used when `source` is `apollo`.
+All values below are confirmed to work on the free plan.
+
+| Value | Apollo endpoint | Returns emails? | Best for |
+|---|---|---|---|
+| `contacts_search` | `api/v1/contacts/search` | Yes | Search your own saved Apollo contacts by keyword, title, company etc. |
+| `organization_top_people` | `api/v1/mixed_people/organization_top_people` | Sometimes | Get key decision-makers from a specific company — pass `organization_id` in filters |
+| `organization_search` | `api/v1/organizations/search` | No | Find companies matching industry, size, location etc. |
+| `organization_enrich` | `api/v1/organizations/enrich` | No | Enrich a single company by domain — pass `domain` in filters |
+
+**Recommended free-plan flow:**
+1. `organization_search` → find matching companies, get Apollo org IDs
+2. `organization_top_people` → get decision-makers per company (pass `organization_id`)
+3. Run Clay Enrich job on the imported leads to get verified emails
+
+ */
+export type ApolloSearchType =
+  (typeof ApolloSearchType)[keyof typeof ApolloSearchType];
+
+export const ApolloSearchType = {
+  contacts_search: "contacts_search",
+  organization_top_people: "organization_top_people",
+  organization_search: "organization_search",
+  organization_enrich: "organization_enrich",
+} as const;
+
+/**
+ * Provider-specific search filters forwarded directly to the provider API.
+For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+`organization_industry_tag_ids`, `num_employees_ranges`, etc.
+
+ */
+export type OutboundImportJobBodyFilters = { [key: string]: unknown };
+
+export interface OutboundImportJobBody {
+  /** Provider to source leads from (e.g. `apollo`, `manual`, `csv`) */
+  source: string;
+  importType?: OutboundImportJobBodyImportType;
+  apolloSearchType?: ApolloSearchType;
+  /** Inline lead list (used when importType is `manual`) */
+  leads?: OutboundLeadInput[];
+  /** Provider-specific search filters forwarded directly to the provider API.
+For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+`organization_industry_tag_ids`, `num_employees_ranges`, etc.
+ */
+  filters?: OutboundImportJobBodyFilters;
+  /** Page number for paginated provider results (Apollo supports up to 500 pages) */
+  page?: number;
+  /** Number of results per page (max 100 for Apollo) */
+  perPage?: number;
+  campaignId?: number;
+}
+
+export interface OutboundLeadIdsJobBody {
+  leadIds: number[];
+  provider?: string;
+  campaignId?: number;
+}
+
+export interface OutboundPersonalizeJobBody {
+  leadIds: number[];
+  campaignId: number;
+  provider?: string;
+  promptVersion?: string;
+}
+
+export type OutboundLaunchJobBodyProvider =
+  (typeof OutboundLaunchJobBodyProvider)[keyof typeof OutboundLaunchJobBodyProvider];
+
+export const OutboundLaunchJobBodyProvider = {
+  instantly: "instantly",
+  smartlead: "smartlead",
+  resend: "resend",
+} as const;
+
+export interface OutboundLaunchJobBody {
+  campaignId: number;
+  leadIds: number[];
+  provider?: OutboundLaunchJobBodyProvider;
+  dailyCap?: number;
+}
+
+export type OutboundJobInput = { [key: string]: unknown };
+
+export type OutboundJobResultProperty = { [key: string]: unknown };
+
+export interface OutboundJob {
+  id: number;
+  stage: string;
+  status: string;
+  /** @nullable */
+  campaignId?: number | null;
+  /** @nullable */
+  provider?: string | null;
+  input?: OutboundJobInput;
+  result?: OutboundJobResultProperty;
+  /** @nullable */
+  error?: string | null;
+  /** @nullable */
+  idempotencyKey?: string | null;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OutboundJobResult {
+  jobId: number;
+  imported?: number;
+  duplicates?: number;
+  total?: number;
+  enriched?: number;
+  verified?: number;
+  invalid?: number;
+  generated?: number;
+  sent?: number;
+  provider?: string;
+  retried?: boolean;
+  attempt?: number;
+}
+
+export interface OutboundPipelineStats {
+  sourced: number;
+  enriched: number;
+  verified: number;
+  invalid: number;
+  review: number;
+  total: number;
+}
+
+export interface OutboundCampaignPerformance {
+  campaignId: number;
+  sent: number;
+  opened: number;
+  replied: number;
+  positiveReplies: number;
+  bounces: number;
+  meetingsBooked: number;
+  deliveryRate: number;
+  openRate: number;
+  replyRate: number;
+  positiveReplyRate: number;
+  meetingRate: number;
+}
+
+export type OutboundPhaseOneConfigProviders = { [key: string]: string[] };
+
+export type OutboundPhaseOneConfigKpiTargets = {
+  minimumDeliverabilityRatePct?: number;
+  minimumOpenRatePct?: number;
+  minimumReplyRatePct?: number;
+  minimumPositiveReplyRatePct?: number;
+};
+
+export interface OutboundPhaseOneConfig {
+  scope: string;
+  providers: OutboundPhaseOneConfigProviders;
+  kpiTargets: OutboundPhaseOneConfigKpiTargets;
+}
+
+export interface OutboundPilotRunBody {
+  campaignId: number;
+}
+
+export type OutboundPilotRunResultMetrics = { [key: string]: unknown };
+
+export type OutboundPilotRunResultTargets = { [key: string]: unknown };
+
+export type OutboundPilotRunResultChecks = { [key: string]: boolean };
+
+export interface OutboundPilotRunResult {
+  campaignId: number;
+  metrics: OutboundPilotRunResultMetrics;
+  targets: OutboundPilotRunResultTargets;
+  checks: OutboundPilotRunResultChecks;
+  passed: boolean;
+}
+
+export interface WebhookEventBody {
+  eventId?: string;
+  eventType?: string;
+  campaignId?: number;
+  leadId?: number;
+  [key: string]: unknown;
+}
+
+export interface WebhookAck {
+  ok: boolean;
+  deduplicated?: boolean;
+}
+
 export type AuthorizationSessionHeaderParameter = string;
+
+export type GetGoogleAuthStartParams = {
+  redirectUri: string;
+  returnTo?: string;
+};
 
 export type BeginBrowserLoginParams = {
   returnTo?: string;

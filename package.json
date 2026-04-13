@@ -7,7 +7,9 @@
     "build": "pnpm run validate:api-spec && pnpm run typecheck && pnpm -r --if-present run build",
     "validate:api-spec": "pnpm --filter @workspace/api-spec run validate",
     "typecheck:libs": "tsc --build",
-    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+    "typecheck": "pnpm run typecheck:libs && pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck",
+    "check:architecture": "node ./scripts/check-route-boundaries.mjs",
+    "smoke:backend:phase1": "bash ./scripts/backend-smoke-phase1.sh"
   },
   "private": true,
   "devDependencies": {

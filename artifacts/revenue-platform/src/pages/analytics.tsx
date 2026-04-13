@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/molecules/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -32,11 +32,11 @@ export default function Analytics() {
   const [activeTab, setActiveTab] = useState("overview");
   const { data: overview, isLoading: overviewLoading } = useQuery({
     queryKey: getGetAnalyticsOverviewQueryKey(),
-    queryFn: () => getAnalyticsOverview(),
+    queryFn: () => getAnalyticsOverview(undefined, { credentials: "include" }),
   });
   const { data: campaignAnalytics, isLoading: campaignsLoading } = useQuery({
     queryKey: getGetAnalyticsCampaignsQueryKey(),
-    queryFn: () => getAnalyticsCampaigns(),
+    queryFn: () => getAnalyticsCampaigns({ credentials: "include" }),
   });
 
   const kpis = [

@@ -36,6 +36,62 @@ export const GetCurrentAuthUserResponse = zod.object({
 });
 
 /**
+ * @summary Generate Google OAuth authorization URL
+ */
+export const GetGoogleAuthStartQueryParams = zod.object({
+  redirectUri: zod.coerce.string().url(),
+  returnTo: zod.coerce.string().optional(),
+});
+
+export const GetGoogleAuthStartResponse = zod.object({
+  authUrl: zod.string().url(),
+  state: zod.string(),
+});
+
+/**
+ * @summary Exchange Google OAuth code for API JWT tokens
+ */
+
+export const ExchangeGoogleAuthCodeBody = zod.object({
+  code: zod.string().min(1),
+  state: zod.string().min(1),
+  redirectUri: zod.string().url(),
+});
+
+export const ExchangeGoogleAuthCodeResponse = zod.object({
+  accessToken: zod.string(),
+  refreshToken: zod.string(),
+  tokenType: zod.enum(["Bearer"]),
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string().email().nullable(),
+    firstName: zod.string().nullable(),
+    lastName: zod.string().nullable(),
+    profileImageUrl: zod.string().nullable(),
+  }),
+});
+
+/**
+ * @summary Refresh JWT access token with refresh token
+ */
+export const RefreshAuthTokenBody = zod.object({
+  refreshToken: zod.string().optional(),
+});
+
+export const RefreshAuthTokenResponse = zod.object({
+  accessToken: zod.string(),
+  refreshToken: zod.string(),
+  tokenType: zod.enum(["Bearer"]),
+  user: zod.object({
+    id: zod.string(),
+    email: zod.string().email().nullable(),
+    firstName: zod.string().nullable(),
+    lastName: zod.string().nullable(),
+    profileImageUrl: zod.string().nullable(),
+  }),
+});
+
+/**
  * @summary Start the browser OIDC login flow
  */
 export const BeginBrowserLoginQueryParams = zod.object({
@@ -88,6 +144,15 @@ export const LogoutMobileSessionResponse = zod.object({
 /**
  * @summary Get dashboard overview stats
  */
+const _TrendFields = zod.object({
+  totalProspects: zod.number().nullable(),
+  emailsSent: zod.number().nullable(),
+  replyRate: zod.number().nullable(),
+  meetingsBooked: zod.number().nullable(),
+  reactivatedLeads: zod.number().nullable(),
+  websiteConversions: zod.number().nullable(),
+});
+
 export const GetDashboardStatsResponse = zod.object({
   totalProspects: zod.number(),
   emailsSent: zod.number(),
@@ -95,6 +160,7 @@ export const GetDashboardStatsResponse = zod.object({
   meetingsBooked: zod.number(),
   reactivatedLeads: zod.number(),
   websiteConversions: zod.number(),
+  trends: _TrendFields.optional(),
 });
 
 /**
@@ -812,4 +878,354 @@ export const UpdatePromptTemplateResponse = zod.object({
  */
 export const DeletePromptTemplateParams = zod.object({
   id: zod.coerce.number(),
+});
+
+/**
+ * @summary Create outbound import job
+ */
+export const CreateOutboundImportJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const createOutboundImportJobBodyApolloSearchTypeDefault = `contacts_search`;
+export const createOutboundImportJobBodyPageDefault = 1;
+export const createOutboundImportJobBodyPerPageDefault = 25;
+
+export const CreateOutboundImportJobBody = zod.object({
+  source: zod
+    .string()
+    .describe("Provider to source leads from (e.g. `apollo`, `manual`, `csv`)"),
+  importType: zod
+    .enum(["api", "export", "manual"])
+    .optional()
+    .describe(
+      "How leads are being supplied:\n- `api` — pulled live from a provider API (e.g. Apollo)\n- `export` — uploaded as a CSV \/ bulk list\n- `manual` — inline `leads` array in the request body\n",
+    ),
+  apolloSearchType: zod
+    .enum([
+      "contacts_search",
+      "organization_top_people",
+      "organization_search",
+      "organization_enrich",
+    ])
+    .default(createOutboundImportJobBodyApolloSearchTypeDefault)
+    .describe(
+      "Which Apollo API endpoint to call. Only used when `source` is `apollo`.\nAll values below are confirmed to work on the free plan.\n\n| Value | Apollo endpoint | Returns emails? | Best for |\n|---|---|---|---|\n| `contacts_search` | `api\/v1\/contacts\/search` | Yes | Search your own saved Apollo contacts by keyword, title, company etc. |\n| `organization_top_people` | `api\/v1\/mixed_people\/organization_top_people` | Sometimes | Get key decision-makers from a specific company — pass `organization_id` in filters |\n| `organization_search` | `api\/v1\/organizations\/search` | No | Find companies matching industry, size, location etc. |\n| `organization_enrich` | `api\/v1\/organizations\/enrich` | No | Enrich a single company by domain — pass `domain` in filters |\n\n\*\*Recommended free-plan flow:\*\*\n1. `organization_search` → find matching companies, get Apollo org IDs\n2. `organization_top_people` → get decision-makers per company (pass `organization_id`)\n3. Run Clay Enrich job on the imported leads to get verified emails\n",
+    ),
+  leads: zod
+    .array(
+      zod.object({
+        firstName: zod.string(),
+        lastName: zod.string(),
+        email: zod.string(),
+        company: zod.string(),
+        title: zod.string(),
+        industry: zod.string().optional(),
+        companySize: zod.string().optional(),
+        linkedinUrl: zod.string().optional(),
+        notes: zod.string().optional(),
+      }),
+    )
+    .optional()
+    .describe("Inline lead list (used when importType is `manual`)"),
+  filters: zod
+    .record(zod.string(), zod.unknown())
+    .optional()
+    .describe(
+      "Provider-specific search filters forwarded directly to the provider API.\nFor Apollo these map to query parameters such as `person_titles`, `person_locations`,\n`organization_industry_tag_ids`, `num_employees_ranges`, etc.\n",
+    ),
+  page: zod
+    .number()
+    .default(createOutboundImportJobBodyPageDefault)
+    .describe(
+      "Page number for paginated provider results (Apollo supports up to 500 pages)",
+    ),
+  perPage: zod
+    .number()
+    .default(createOutboundImportJobBodyPerPageDefault)
+    .describe("Number of results per page (max 100 for Apollo)"),
+  campaignId: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound enrichment job
+ */
+export const CreateOutboundEnrichJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundEnrichJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  provider: zod.string().optional(),
+  campaignId: zod.number().optional(),
+});
+
+export const CreateOutboundEnrichJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound verification job
+ */
+export const CreateOutboundVerifyJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundVerifyJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  provider: zod.string().optional(),
+  campaignId: zod.number().optional(),
+});
+
+export const CreateOutboundVerifyJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Create outbound personalization job
+ */
+export const CreateOutboundPersonalizeJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundPersonalizeJobBody = zod.object({
+  leadIds: zod.array(zod.number()),
+  campaignId: zod.number(),
+  provider: zod.string().optional(),
+  promptVersion: zod.string().optional(),
+});
+
+export const CreateOutboundPersonalizeJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Launch outbound campaign through provider
+ */
+export const CreateOutboundLaunchJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const CreateOutboundLaunchJobBody = zod.object({
+  campaignId: zod.number(),
+  leadIds: zod.array(zod.number()),
+  provider: zod.enum(["instantly", "smartlead", "resend"]).optional(),
+  dailyCap: zod.number().optional(),
+});
+
+export const CreateOutboundLaunchJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Retry an existing outbound job
+ */
+export const RetryOutboundJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const RetryOutboundJobHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const RetryOutboundJobResponse = zod.object({
+  jobId: zod.number(),
+  imported: zod.number().optional(),
+  duplicates: zod.number().optional(),
+  total: zod.number().optional(),
+  enriched: zod.number().optional(),
+  verified: zod.number().optional(),
+  invalid: zod.number().optional(),
+  generated: zod.number().optional(),
+  sent: zod.number().optional(),
+  provider: zod.string().optional(),
+  retried: zod.boolean().optional(),
+  attempt: zod.number().optional(),
+});
+
+/**
+ * @summary Get outbound job status
+ */
+export const GetOutboundJobParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOutboundJobResponse = zod.object({
+  id: zod.number(),
+  stage: zod.string(),
+  status: zod.string(),
+  campaignId: zod.number().nullish(),
+  provider: zod.string().nullish(),
+  input: zod.record(zod.string(), zod.unknown()).optional(),
+  result: zod.record(zod.string(), zod.unknown()).optional(),
+  error: zod.string().nullish(),
+  idempotencyKey: zod.string().nullish(),
+  createdAt: zod.date(),
+  updatedAt: zod.date().optional(),
+});
+
+/**
+ * @summary Get outbound lead pipeline counts
+ */
+export const GetOutboundLeadPipelineResponse = zod.object({
+  sourced: zod.number(),
+  enriched: zod.number(),
+  verified: zod.number(),
+  invalid: zod.number(),
+  review: zod.number(),
+  total: zod.number(),
+});
+
+/**
+ * @summary Get frozen Phase 1 outbound provider and KPI config
+ */
+export const GetOutboundPhaseOneConfigResponse = zod.object({
+  scope: zod.string(),
+  providers: zod.record(zod.string(), zod.array(zod.string())),
+  kpiTargets: zod.object({
+    minimumDeliverabilityRatePct: zod.number().optional(),
+    minimumOpenRatePct: zod.number().optional(),
+    minimumReplyRatePct: zod.number().optional(),
+    minimumPositiveReplyRatePct: zod.number().optional(),
+  }),
+});
+
+/**
+ * @summary Get outbound campaign performance
+ */
+export const GetOutboundCampaignPerformanceParams = zod.object({
+  id: zod.coerce.number(),
+});
+
+export const GetOutboundCampaignPerformanceResponse = zod.object({
+  campaignId: zod.number(),
+  sent: zod.number(),
+  opened: zod.number(),
+  replied: zod.number(),
+  positiveReplies: zod.number(),
+  bounces: zod.number(),
+  meetingsBooked: zod.number(),
+  deliveryRate: zod.number(),
+  openRate: zod.number(),
+  replyRate: zod.number(),
+  positiveReplyRate: zod.number(),
+  meetingRate: zod.number(),
+});
+
+/**
+ * @summary Run pilot KPI validation for one campaign
+ */
+export const RunOutboundPilotHeader = zod.object({
+  "Idempotency-Key": zod.string(),
+});
+
+export const RunOutboundPilotBody = zod.object({
+  campaignId: zod.number(),
+});
+
+export const RunOutboundPilotResponse = zod.object({
+  campaignId: zod.number(),
+  metrics: zod.record(zod.string(), zod.unknown()),
+  targets: zod.record(zod.string(), zod.unknown()),
+  checks: zod.record(zod.string(), zod.boolean()),
+  passed: zod.boolean(),
+});
+
+/**
+ * Automates IMPORT -> ENRICH -> VERIFY -> PERSONALIZE -> LAUNCH
+ * @summary End to end sequence of outbound operations in a single background job
+ */
+export const RunAllOutboundPipelineHeader = zod.object({
+  "Idempotency-Key": zod.string().optional(),
+});
+
+export const RunAllOutboundPipelineBody = zod.object({
+  source: zod.string().optional(),
+  campaignId: zod.number(),
+  filters: zod.record(zod.string(), zod.unknown()).optional(),
+  enrichProvider: zod.string().optional(),
+  verifyProvider: zod.string().optional(),
+  personalizeProvider: zod.string().optional(),
+  launchProvider: zod.string().optional(),
+  dailyCap: zod.number().optional(),
+});
+
+/**
+ * @summary Ingest outbound provider webhook events
+ */
+export const IngestSendingWebhookParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const IngestSendingWebhookHeader = zod.object({
+  "x-webhook-signature": zod.string(),
+});
+
+export const IngestSendingWebhookBody = zod.object({
+  eventId: zod.string().optional(),
+  eventType: zod.string().optional(),
+  campaignId: zod.number().optional(),
+  leadId: zod.number().optional(),
+});
+
+/**
+ * @summary Ingest CRM event webhook
+ */
+export const IngestCrmWebhookParams = zod.object({
+  provider: zod.coerce.string(),
+});
+
+export const IngestCrmWebhookHeader = zod.object({
+  "x-webhook-signature": zod.string(),
+});
+
+export const IngestCrmWebhookBody = zod.object({
+  eventId: zod.string().optional(),
+  eventType: zod.string().optional(),
+  campaignId: zod.number().optional(),
+  leadId: zod.number().optional(),
 });

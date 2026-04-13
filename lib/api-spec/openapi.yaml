@@ -8,6 +8,8 @@ servers:
     description: Versioned API v1 path (canonical)
   - url: /api
     description: Legacy unversioned path (backward compatibility)
+security:
+  - bearerAuth: []
 tags:
   - name: health
     description: Health operations
@@ -33,11 +35,16 @@ tags:
     description: Knowledge base management
   - name: agentLogs
     description: Agent activity logs
+  - name: outbound
+    description: Phase 1 outbound orchestration jobs and reporting
+  - name: webhooks
+    description: External provider webhook ingestion
 paths:
   /healthz:
     get:
       operationId: healthCheck
       tags: [health]
+      security: []
       summary: Health check
       description: Returns server health status
       responses:
@@ -52,6 +59,7 @@ paths:
     get:
       tags: [Auth]
       operationId: getCurrentAuthUser
+      security: []
       summary: Get the currently authenticated user
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -63,10 +71,98 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AuthUserEnvelope'
+  /auth/google/start:
+    get:
+      tags: [Auth]
+      operationId: getGoogleAuthStart
+      security: []
+      summary: Generate Google OAuth authorization URL
+      parameters:
+        - name: redirectUri
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+        - name: returnTo
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OAuth redirect URL generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GoogleAuthStartResponse'
+        '400':
+          description: Invalid query parameters.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/google/exchange:
+    post:
+      tags: [Auth]
+      operationId: exchangeGoogleAuthCode
+      security: []
+      summary: Exchange Google OAuth code for API JWT tokens
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GoogleAuthExchangeRequest'
+      responses:
+        '200':
+          description: Tokens issued successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenExchangeResponse'
+        '400':
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+        '401':
+          description: OAuth exchange failed.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
+  /auth/refresh:
+    post:
+      tags: [Auth]
+      operationId: refreshAuthToken
+      security: []
+      summary: Refresh JWT access token with refresh token
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuthRefreshRequest'
+      responses:
+        '200':
+          description: Tokens refreshed successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthTokenExchangeResponse'
+        '401':
+          description: Missing or invalid refresh token.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorEnvelope'
   /login:
     get:
       tags: [Auth]
       operationId: beginBrowserLogin
+      security: []
       summary: Start the browser OIDC login flow
       parameters:
         - name: returnTo
@@ -81,6 +177,7 @@ paths:
     get:
       tags: [Auth]
       operationId: handleBrowserLoginCallback
+      security: []
       summary: Complete the browser OIDC login flow
       parameters:
         - name: code
@@ -106,6 +203,7 @@ paths:
     get:
       tags: [Auth]
       operationId: logoutBrowserSession
+      security: []
       summary: Clear session and begin OIDC logout
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -117,6 +215,7 @@ paths:
     post:
       tags: [Auth]
       operationId: exchangeMobileAuthorizationCode
+      security: []
       summary: Exchange a mobile OIDC code for a session token
       requestBody:
         required: true
@@ -141,6 +240,7 @@ paths:
     post:
       tags: [Auth]
       operationId: logoutMobileSession
+      security: []
       summary: Delete a mobile session token
       parameters:
         - $ref: '#/components/parameters/AuthorizationSessionHeader'
@@ -876,7 +976,338 @@ paths:
         "204":
           description: Template deleted
 
+  /outbound/jobs/import:
+    post:
+      operationId: createOutboundImportJob
+      tags: [outbound]
+      summary: Create outbound import job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundImportJobBody"
+      responses:
+        "201":
+          description: Import job completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/enrich:
+    post:
+      operationId: createOutboundEnrichJob
+      tags: [outbound]
+      summary: Create outbound enrichment job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLeadIdsJobBody"
+      responses:
+        "200":
+          description: Enrichment job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/verify:
+    post:
+      operationId: createOutboundVerifyJob
+      tags: [outbound]
+      summary: Create outbound verification job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLeadIdsJobBody"
+      responses:
+        "200":
+          description: Verification job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/personalize:
+    post:
+      operationId: createOutboundPersonalizeJob
+      tags: [outbound]
+      summary: Create outbound personalization job
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundPersonalizeJobBody"
+      responses:
+        "200":
+          description: Personalization job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/launch:
+    post:
+      operationId: createOutboundLaunchJob
+      tags: [outbound]
+      summary: Launch outbound campaign through provider
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundLaunchJobBody"
+      responses:
+        "200":
+          description: Launch job result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/{id}/retry:
+    post:
+      operationId: retryOutboundJob
+      tags: [outbound]
+      summary: Retry an existing outbound job
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retry accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJobResult"
+
+  /outbound/jobs/{id}:
+    get:
+      operationId: getOutboundJob
+      tags: [outbound]
+      summary: Get outbound job status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Outbound job status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundJob"
+
+  /outbound/leads/pipeline:
+    get:
+      operationId: getOutboundLeadPipeline
+      tags: [outbound]
+      summary: Get outbound lead pipeline counts
+      responses:
+        "200":
+          description: Pipeline metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPipelineStats"
+
+  /outbound/config:
+    get:
+      operationId: getOutboundPhaseOneConfig
+      tags: [outbound]
+      summary: Get frozen Phase 1 outbound provider and KPI config
+      responses:
+        "200":
+          description: Outbound phase configuration
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPhaseOneConfig"
+
+  /outbound/campaigns/{id}/performance:
+    get:
+      operationId: getOutboundCampaignPerformance
+      tags: [outbound]
+      summary: Get outbound campaign performance
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Campaign performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundCampaignPerformance"
+
+  /outbound/pilot/run:
+    post:
+      operationId: runOutboundPilot
+      tags: [outbound]
+      summary: Run pilot KPI validation for one campaign
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundPilotRunBody"
+      responses:
+        "200":
+          description: Pilot validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OutboundPilotRunResult"
+
+  /outbound/jobs/run-all:
+    post:
+      operationId: runAllOutboundPipeline
+      tags: [outbound]
+      summary: End to end sequence of outbound operations in a single background job
+      description: Automates IMPORT -> ENRICH -> VERIFY -> PERSONALIZE -> LAUNCH
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OutboundRunAllBody"
+      responses:
+        "202":
+          description: Orchestration queued
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobQueuedResult"
+
+  /webhooks/sending/{provider}:
+    post:
+      operationId: ingestSendingWebhook
+      tags: [webhooks]
+      security: []
+      summary: Ingest outbound provider webhook events
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEventBody"
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookAck"
+
+  /webhooks/crm/{provider}:
+    post:
+      operationId: ingestCrmWebhook
+      tags: [webhooks]
+      security: []
+      summary: Ingest CRM event webhook
+      parameters:
+        - name: provider
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: x-webhook-signature
+          in: header
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WebhookEventBody"
+      responses:
+        "202":
+          description: Webhook accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WebhookAck"
+
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   parameters:
     AuthorizationSessionHeader:
       name: Authorization
@@ -894,11 +1325,41 @@ components:
   schemas:
     HealthStatus:
       type: object
+      required: [status]
       properties:
         status:
           type: string
-      required:
-        - status
+
+    OutboundRunAllBody:
+      type: object
+      required: [campaignId]
+      properties:
+        source:
+          type: string
+        campaignId:
+          type: integer
+        filters:
+          type: object
+          additionalProperties: true
+        enrichProvider:
+          type: string
+        verifyProvider:
+          type: string
+        personalizeProvider:
+          type: string
+        launchProvider:
+          type: string
+        dailyCap:
+          type: integer
+
+    JobQueuedResult:
+      type: object
+      required: [jobId, status]
+      properties:
+        jobId:
+          type: integer
+        status:
+          type: string
 
     AuthUser:
       type: object
@@ -923,6 +1384,46 @@ components:
           oneOf:
             - $ref: '#/components/schemas/AuthUser'
             - type: 'null'
+    GoogleAuthStartResponse:
+      type: object
+      required: [authUrl, state]
+      properties:
+        authUrl:
+          type: string
+          format: uri
+        state:
+          type: string
+    GoogleAuthExchangeRequest:
+      type: object
+      required: [code, state, redirectUri]
+      properties:
+        code:
+          type: string
+          minLength: 1
+        state:
+          type: string
+          minLength: 1
+        redirectUri:
+          type: string
+          format: uri
+    AuthRefreshRequest:
+      type: object
+      properties:
+        refreshToken:
+          type: string
+    AuthTokenExchangeResponse:
+      type: object
+      required: [accessToken, refreshToken, tokenType, user]
+      properties:
+        accessToken:
+          type: string
+        refreshToken:
+          type: string
+        tokenType:
+          type: string
+          enum: [Bearer]
+        user:
+          $ref: '#/components/schemas/AuthUser'
     MobileTokenExchangeRequest:
       type: object
       required: [code, code_verifier, redirect_uri, state]
@@ -979,6 +1480,21 @@ components:
           type: integer
         websiteConversions:
           type: integer
+        trends:
+          type: object
+          properties:
+            totalProspects:
+              type: number
+            emailsSent:
+              type: number
+            replyRate:
+              type: number
+            meetingsBooked:
+              type: number
+            reactivatedLeads:
+              type: number
+            websiteConversions:
+              type: number
 
     DashboardCharts:
       type: object
@@ -1659,3 +2175,320 @@ components:
           type: string
         template:
           type: string
+
+    OutboundLeadInput:
+      type: object
+      required: [firstName, lastName, email, company, title]
+      properties:
+        firstName:
+          type: string
+        lastName:
+          type: string
+        email:
+          type: string
+        company:
+          type: string
+        title:
+          type: string
+        industry:
+          type: string
+        companySize:
+          type: string
+        linkedinUrl:
+          type: string
+        notes:
+          type: string
+
+    OutboundImportJobBodyImportType:
+      type: string
+      enum: [api, export, manual]
+      description: |
+        How leads are being supplied:
+        - `api` — pulled live from a provider API (e.g. Apollo)
+        - `export` — uploaded as a CSV / bulk list
+        - `manual` — inline `leads` array in the request body
+
+    ApolloSearchType:
+      type: string
+      enum:
+        - contacts_search
+        - organization_top_people
+        - organization_search
+        - organization_enrich
+      default: contacts_search
+      description: |
+        Which Apollo API endpoint to call. Only used when `source` is `apollo`.
+        All values below are confirmed to work on the free plan.
+
+        | Value | Apollo endpoint | Returns emails? | Best for |
+        |---|---|---|---|
+        | `contacts_search` | `api/v1/contacts/search` | Yes | Search your own saved Apollo contacts by keyword, title, company etc. |
+        | `organization_top_people` | `api/v1/mixed_people/organization_top_people` | Sometimes | Get key decision-makers from a specific company — pass `organization_id` in filters |
+        | `organization_search` | `api/v1/organizations/search` | No | Find companies matching industry, size, location etc. |
+        | `organization_enrich` | `api/v1/organizations/enrich` | No | Enrich a single company by domain — pass `domain` in filters |
+
+        **Recommended free-plan flow:**
+        1. `organization_search` → find matching companies, get Apollo org IDs
+        2. `organization_top_people` → get decision-makers per company (pass `organization_id`)
+        3. Run Clay Enrich job on the imported leads to get verified emails
+
+    OutboundImportJobBody:
+      type: object
+      required: [source]
+      properties:
+        source:
+          type: string
+          description: Provider to source leads from (e.g. `apollo`, `manual`, `csv`)
+        importType:
+          $ref: "#/components/schemas/OutboundImportJobBodyImportType"
+        apolloSearchType:
+          $ref: "#/components/schemas/ApolloSearchType"
+        leads:
+          type: array
+          description: Inline lead list (used when importType is `manual`)
+          items:
+            $ref: "#/components/schemas/OutboundLeadInput"
+        filters:
+          type: object
+          additionalProperties: true
+          description: |
+            Provider-specific search filters forwarded directly to the provider API.
+            For Apollo these map to query parameters such as `person_titles`, `person_locations`,
+            `organization_industry_tag_ids`, `num_employees_ranges`, etc.
+          example:
+            person_titles: ["Founder", "CEO", "VP of Sales"]
+            person_locations: ["United States"]
+            num_employees_ranges: ["1,50", "51,200"]
+        page:
+          type: integer
+          default: 1
+          description: Page number for paginated provider results (Apollo supports up to 500 pages)
+        perPage:
+          type: integer
+          default: 25
+          description: Number of results per page (max 100 for Apollo)
+        campaignId:
+          type: integer
+
+    OutboundLeadIdsJobBody:
+      type: object
+      required: [leadIds]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+        provider:
+          type: string
+        campaignId:
+          type: integer
+
+    OutboundPersonalizeJobBody:
+      type: object
+      required: [leadIds, campaignId]
+      properties:
+        leadIds:
+          type: array
+          items:
+            type: integer
+        campaignId:
+          type: integer
+        provider:
+          type: string
+        promptVersion:
+          type: string
+
+    OutboundLaunchJobBody:
+      type: object
+      required: [campaignId, leadIds]
+      properties:
+        campaignId:
+          type: integer
+        leadIds:
+          type: array
+          items:
+            type: integer
+        provider:
+          type: string
+          enum: [instantly, smartlead, resend]
+        dailyCap:
+          type: integer
+
+    OutboundJob:
+      type: object
+      required: [id, stage, status, createdAt]
+      properties:
+        id:
+          type: integer
+        stage:
+          type: string
+        status:
+          type: string
+        campaignId:
+          type: [integer, 'null']
+        provider:
+          type: [string, 'null']
+        input:
+          type: object
+          additionalProperties: true
+        result:
+          type: object
+          additionalProperties: true
+        error:
+          type: [string, 'null']
+        idempotencyKey:
+          type: [string, 'null']
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+
+    OutboundJobResult:
+      type: object
+      required: [jobId]
+      properties:
+        jobId:
+          type: integer
+        imported:
+          type: integer
+        duplicates:
+          type: integer
+        total:
+          type: integer
+        enriched:
+          type: integer
+        verified:
+          type: integer
+        invalid:
+          type: integer
+        generated:
+          type: integer
+        sent:
+          type: integer
+        provider:
+          type: string
+        retried:
+          type: boolean
+        attempt:
+          type: integer
+
+    OutboundPipelineStats:
+      type: object
+      required: [sourced, enriched, verified, invalid, review, total]
+      properties:
+        sourced:
+          type: integer
+        enriched:
+          type: integer
+        verified:
+          type: integer
+        invalid:
+          type: integer
+        review:
+          type: integer
+        total:
+          type: integer
+
+    OutboundCampaignPerformance:
+      type: object
+      required:
+        [campaignId, sent, opened, replied, positiveReplies, bounces, meetingsBooked, deliveryRate, openRate, replyRate, positiveReplyRate, meetingRate]
+      properties:
+        campaignId:
+          type: integer
+        sent:
+          type: integer
+        opened:
+          type: integer
+        replied:
+          type: integer
+        positiveReplies:
+          type: integer
+        bounces:
+          type: integer
+        meetingsBooked:
+          type: integer
+        deliveryRate:
+          type: number
+        openRate:
+          type: number
+        replyRate:
+          type: number
+        positiveReplyRate:
+          type: number
+        meetingRate:
+          type: number
+
+    OutboundPhaseOneConfig:
+      type: object
+      required: [scope, providers, kpiTargets]
+      properties:
+        scope:
+          type: string
+        providers:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+        kpiTargets:
+          type: object
+          properties:
+            minimumDeliverabilityRatePct:
+              type: number
+            minimumOpenRatePct:
+              type: number
+            minimumReplyRatePct:
+              type: number
+            minimumPositiveReplyRatePct:
+              type: number
+
+    OutboundPilotRunBody:
+      type: object
+      required: [campaignId]
+      properties:
+        campaignId:
+          type: integer
+
+    OutboundPilotRunResult:
+      type: object
+      required: [campaignId, metrics, targets, checks, passed]
+      properties:
+        campaignId:
+          type: integer
+        metrics:
+          type: object
+          additionalProperties: true
+        targets:
+          type: object
+          additionalProperties: true
+        checks:
+          type: object
+          additionalProperties:
+            type: boolean
+        passed:
+          type: boolean
+
+    WebhookEventBody:
+      type: object
+      properties:
+        eventId:
+          type: string
+        eventType:
+          type: string
+        campaignId:
+          type: integer
+        leadId:
+          type: integer
+      additionalProperties: true
+
+    WebhookAck:
+      type: object
+      required: [ok]
+      properties:
+        ok:
+          type: boolean
+        deduplicated:
+          type: boolean

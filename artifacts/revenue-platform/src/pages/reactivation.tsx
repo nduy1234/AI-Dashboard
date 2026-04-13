@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { PageHeader } from "@/components/ui/page-header";
+import { PageHeader } from "@/components/molecules/page-header";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -256,27 +256,29 @@ export default function Reactivation() {
                 <CardDescription>AI-generated personalized re-engagement messages</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { step: 1, delay: "Day 1", subject: "Checking in - new developments at {{company}}", desc: "Warm re-introduction referencing past interaction and new product features." },
-                  { step: 2, delay: "Day 4", subject: "Quick case study from your industry", desc: "Share relevant success story from a similar company in their industry." },
-                  { step: 3, delay: "Day 8", subject: "Worth 15 minutes, {{firstName}}?", desc: "Direct ask for a brief call with specific value proposition." },
-                ].map(item => (
-                  <div key={item.step} className="p-4 rounded-lg border border-border bg-muted/20">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
-                        <span className="text-sm font-bold text-primary">{item.step}</span>
-                      </div>
-                      <div className="flex-1">
-                        <p className="font-medium text-sm">{item.subject}</p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <Clock className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{item.delay}</span>
+                {reactivationMutation.data?.messages ? (
+                  reactivationMutation.data.messages.map((item, i) => (
+                    <div key={`${item.leadId}-${i}`} className="p-4 rounded-lg border border-border bg-muted/20">
+                      <div className="flex items-center gap-3 mb-2">
+                        <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center">
+                          <span className="text-sm font-bold text-primary">{i + 1}</span>
+                        </div>
+                        <div className="flex-1">
+                          <p className="font-medium text-sm">{item.subject}</p>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <Clock className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-xs text-muted-foreground">Day {i * 3 + 1}</span>
+                          </div>
                         </div>
                       </div>
+                      <p className="text-sm text-muted-foreground ml-11 whitespace-pre-wrap">{item.body}</p>
                     </div>
-                    <p className="text-sm text-muted-foreground ml-11">{item.desc}</p>
+                  ))
+                ) : (
+                  <div className="text-center p-8 text-muted-foreground">
+                    No sequence generated yet. Select a channel and click "AI Generate Messages".
                   </div>
-                ))}
+                )}
               </CardContent>
               <CardFooter className="flex justify-end gap-3 border-t pt-4">
                 <Button variant="outline">Edit Sequence</Button>

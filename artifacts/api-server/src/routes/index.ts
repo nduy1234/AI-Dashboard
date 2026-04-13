@@ -3,6 +3,7 @@ import { requireAuth } from "../middlewares/requireAuth";
 import healthRouter from "./health";
 import authRouter from "./auth";
 import docsRouter from "./docs";
+import webhooksRouter from "./webhooks";
 import dashboardRouter from "./dashboard";
 import leadsRouter from "./leads";
 import campaignsRouter from "./campaigns";
@@ -13,12 +14,14 @@ import aiRouter from "./ai";
 import knowledgeBaseRouter from "./knowledgeBase";
 import agentLogsRouter from "./agentLogs";
 import settingsRouter from "./settings";
+import outboundRouter from "./outbound";
 
 const router: IRouter = Router();
 
 router.use(healthRouter);
 router.use(authRouter);
 router.use(docsRouter);
+router.use(webhooksRouter);
 
 router.use(requireAuth);
 router.use(dashboardRouter);
@@ -31,5 +34,6 @@ router.use(aiRouter);
 router.use(knowledgeBaseRouter);
 router.use(agentLogsRouter);
 router.use(settingsRouter);
+router.use(outboundRouter);
 
 export default router;
