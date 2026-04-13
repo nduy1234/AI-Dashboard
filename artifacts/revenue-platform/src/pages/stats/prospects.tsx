@@ -15,30 +15,14 @@ import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
+import { listLeads, getListLeadsQueryKey } from "@workspace/api-client-react";
 
-const PROSPECTS = [
-  { id: 1,  name: "Sarah Johnson",   title: "VP of Sales",          company: "TechCorp Inc",        industry: "SaaS",         status: "meeting_booked", source: "Apollo",   lastActivity: "2h ago",   score: 92, email: "sarah@techcorp.io" },
-  { id: 2,  name: "Mike Chen",       title: "Head of Engineering",  company: "DataFlow Ltd",        industry: "Analytics",    status: "replied",        source: "Clay",     lastActivity: "4h ago",   score: 87, email: "mchen@dataflow.co" },
-  { id: 3,  name: "Lisa Park",       title: "Chief Revenue Officer", company: "ScaleUp AI",         industry: "AI/ML",        status: "qualified",      source: "Apollo",   lastActivity: "6h ago",   score: 81, email: "lpark@scaleupai.com" },
-  { id: 4,  name: "Jordan Williams", title: "Product Manager",       company: "CloudVentures",      industry: "Cloud",        status: "contacted",      source: "LinkedIn", lastActivity: "1d ago",   score: 74, email: "jwill@cloudventures.io" },
-  { id: 5,  name: "Priya Patel",     title: "CEO",                   company: "NexGen Solutions",   industry: "Fintech",      status: "new",            source: "RB2B",     lastActivity: "1d ago",   score: 68, email: "priya@nexgen.co" },
-  { id: 6,  name: "Alex Rivera",     title: "Director of Ops",       company: "VentureX",           industry: "VC",           status: "new",            source: "Apollo",   lastActivity: "2d ago",   score: 65, email: "arivera@venturex.com" },
-  { id: 7,  name: "Emma Thompson",   title: "Head of Marketing",     company: "GrowthLab",          industry: "Marketing",    status: "contacted",      source: "Clay",     lastActivity: "2d ago",   score: 71, email: "emma@growthlab.co" },
-  { id: 8,  name: "David Kim",       title: "CTO",                   company: "PropTech Hub",       industry: "Real Estate",  status: "qualified",      source: "Apollo",   lastActivity: "3d ago",   score: 83, email: "dkim@proptechhub.com" },
-  { id: 9,  name: "Natasha Brown",   title: "VP Engineering",        company: "HealthStack",        industry: "HealthTech",   status: "meeting_booked", source: "RB2B",     lastActivity: "3d ago",   score: 90, email: "nbrown@healthstack.io" },
-  { id: 10, name: "Carlos Mendez",   title: "COO",                   company: "RetailAI Corp",      industry: "Retail",       status: "replied",        source: "Apollo",   lastActivity: "4d ago",   score: 78, email: "carlos@retailai.com" },
-  { id: 11, name: "Grace Wu",        title: "Head of Product",       company: "DevHub",             industry: "Developer Tools", status: "new",         source: "LinkedIn", lastActivity: "5d ago",   score: 62, email: "gwu@devhub.io" },
-  { id: 12, name: "Omar Hassan",     title: "CFO",                   company: "CapitalFlow",        industry: "Finance",      status: "contacted",      source: "Clay",     lastActivity: "5d ago",   score: 70, email: "omar@capitalflow.com" },
-  { id: 13, name: "Isabelle Durand", title: "Sales Director",        company: "EuroTech SA",        industry: "Enterprise",   status: "qualified",      source: "Apollo",   lastActivity: "6d ago",   score: 79, email: "idurand@eurotech.fr" },
-  { id: 14, name: "Ryan Scott",      title: "VP Partnerships",       company: "AllianceHQ",         industry: "B2B",          status: "new",            source: "RB2B",     lastActivity: "6d ago",   score: 59, email: "rscott@alliancehq.com" },
-  { id: 15, name: "Mei Zhang",       title: "Head of Demand Gen",    company: "MarketPulse",        industry: "Marketing",    status: "contacted",      source: "Apollo",   lastActivity: "7d ago",   score: 67, email: "mzhang@marketpulse.io" },
-];
-
-const SOURCE_EXTRA: Record<string, { count: number; color: string }> = {
-  Apollo:   { count: 74, color: "bg-blue-500/10 text-blue-400 border-blue-500/20" },
-  Clay:     { count: 42, color: "bg-violet-500/10 text-violet-400 border-violet-500/20" },
-  LinkedIn: { count: 31, color: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20" },
-  RB2B:     { count: 22, color: "bg-amber-500/10 text-amber-400 border-amber-500/20" },
+const SOURCE_COLORS: Record<string, string> = {
+  Apollo:   "bg-blue-500/10 text-blue-400 border-blue-500/20",
+  Clay:     "bg-violet-500/10 text-violet-400 border-violet-500/20",
+  LinkedIn: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
+  RB2B:     "bg-amber-500/10 text-amber-400 border-amber-500/20",
 };
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
@@ -58,22 +42,52 @@ export default function ProspectsDetail() {
   const [page, setPage] = useState(1);
   const PER_PAGE = 10;
 
-  const filtered = PROSPECTS.filter(p => {
+  const { data: leads = [], isLoading } = useQuery({
+    queryKey: getListLeadsQueryKey(),
+    queryFn: () => listLeads(undefined, { credentials: "include" }),
+  });
+
+  const filtered = leads.filter((p: any) => {
     const matchTab = tab === "all" || p.status === tab;
     const q = search.toLowerCase();
-    const matchSearch = !q || p.name.toLowerCase().includes(q) || p.company.toLowerCase().includes(q) || p.title.toLowerCase().includes(q);
+    const matchSearch = !q || (p.firstName + " " + p.lastName).toLowerCase().includes(q) ||
+      (p.company ?? "").toLowerCase().includes(q) ||
+      (p.jobTitle ?? "").toLowerCase().includes(q);
     return matchTab && matchSearch;
   });
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
 
+  // Derive source breakdown from live data
+  const sourceCounts = leads.reduce((acc: Record<string, number>, l: any) => {
+    const src = l.source ?? "Unknown";
+    acc[src] = (acc[src] ?? 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
+
+  // 7-day threshold for "new this week"
+  const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+
   const stats = [
-    { label: "Total Prospects",  value: "169", icon: Users,        color: "text-primary",    bg: "bg-primary/10" },
-    { label: "New This Week",    value: "23",  icon: UserPlus,     color: "text-cyan-400",   bg: "bg-cyan-500/10" },
-    { label: "Qualified",        value: "41",  icon: Star,         color: "text-amber-400",  bg: "bg-amber-500/10" },
-    { label: "Meetings Booked",  value: "8",   icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "Total Prospects",  value: leads.length.toString(), icon: Users,        color: "text-primary",    bg: "bg-primary/10" },
+    { label: "New This Week",    value: leads.filter((l: any) => l.createdAt && new Date(l.createdAt).getTime() > oneWeekAgo).length.toString(), icon: UserPlus, color: "text-cyan-400", bg: "bg-cyan-500/10" },
+    { label: "Qualified",        value: leads.filter((l: any) => l.status === "qualified").length.toString(), icon: Star, color: "text-amber-400", bg: "bg-amber-500/10" },
+    { label: "Meetings Booked",  value: leads.filter((l: any) => l.status === "meeting_booked").length.toString(), icon: CheckCircle2, color: "text-emerald-400", bg: "bg-emerald-500/10" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-24 shimmer rounded-xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 shimmer rounded-lg" />)}
+        </div>
+        <div className="h-10 shimmer rounded-lg" />
+        <div className="h-80 shimmer rounded-lg" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6 relative">
@@ -94,7 +108,7 @@ export default function ProspectsDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">Prospects</h1>
-              <Badge className="bg-primary/10 text-primary border-primary/20 text-[11px] font-semibold">169</Badge>
+              <Badge className="bg-primary/10 text-primary border-primary/20 text-[11px] font-semibold">{leads.length}</Badge>
             </div>
             <p className="text-[13px] text-muted-foreground mt-0.5">All prospects tracked across your outbound campaigns.</p>
           </div>
@@ -130,19 +144,21 @@ export default function ProspectsDetail() {
       </div>
 
       {/* Source breakdown */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        {Object.entries(SOURCE_EXTRA).map(([src, { count, color }]) => (
-          <Card key={src} className="overflow-hidden">
-            <CardContent className="p-3 flex items-center justify-between gap-2">
-              <div>
-                <p className="text-[11px] text-muted-foreground">Source</p>
-                <p className="text-[13px] font-semibold text-foreground mt-0.5">{src}</p>
-              </div>
-              <Badge className={`text-[12px] font-bold px-2 py-1 ${color}`}>{count}</Badge>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      {Object.keys(sourceCounts).length > 0 && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {Object.entries(sourceCounts).slice(0, 4).map(([src, count]) => (
+            <Card key={src} className="overflow-hidden">
+              <CardContent className="p-3 flex items-center justify-between gap-2">
+                <div>
+                  <p className="text-[11px] text-muted-foreground">Source</p>
+                  <p className="text-[13px] font-semibold text-foreground mt-0.5">{src}</p>
+                </div>
+                <Badge className={`text-[12px] font-bold px-2 py-1 ${SOURCE_COLORS[src] ?? "bg-muted/60 text-muted-foreground"}`}>{count}</Badge>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
 
       {/* Table */}
       <Card className="overflow-hidden">
@@ -150,7 +166,7 @@ export default function ProspectsDetail() {
           <div className="flex flex-col sm:flex-row sm:items-center gap-3">
             <div className="flex-1">
               <CardTitle className="text-[14px] font-semibold">All Prospects</CardTitle>
-              <CardDescription className="text-xs mt-0.5">{filtered.length} of 169 shown</CardDescription>
+              <CardDescription className="text-xs mt-0.5">{filtered.length} of {leads.length} shown</CardDescription>
             </div>
             <div className="flex items-center gap-2">
               <div className="relative">
@@ -191,18 +207,22 @@ export default function ProspectsDetail() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {paginated.map((p) => {
-                const sc = STATUS_CONFIG[p.status];
+              {paginated.map((p: any) => {
+                const fullName = [p.firstName, p.lastName].filter(Boolean).join(" ") || p.email || "Unknown";
+                const initials = fullName.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase();
+                const score = p.leadScore ?? 0;
+                const sc = STATUS_CONFIG[p.status as string] ?? { label: p.status ?? "Unknown", color: "bg-muted/60 text-muted-foreground" };
+                const lastActivity = p.updatedAt ? new Date(p.updatedAt).toLocaleDateString() : "—";
                 return (
                   <TableRow key={p.id} className="border-border hover:bg-muted/30 transition-colors">
                     <TableCell className="pl-5 py-3">
                       <div className="flex items-center gap-2.5">
                         <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0 text-primary text-[12px] font-bold">
-                          {p.name.split(" ").map(n => n[0]).join("").slice(0,2)}
+                          {initials}
                         </div>
                         <div>
-                          <p className="text-[13px] font-semibold text-foreground">{p.name}</p>
-                          <p className="text-[11px] text-muted-foreground">{p.title}</p>
+                          <p className="text-[13px] font-semibold text-foreground">{fullName}</p>
+                          <p className="text-[11px] text-muted-foreground">{p.jobTitle ?? ""}</p>
                         </div>
                       </div>
                     </TableCell>
@@ -210,23 +230,23 @@ export default function ProspectsDetail() {
                       <div className="flex items-center gap-1.5">
                         <Building2 className="w-3.5 h-3.5 text-muted-foreground/60 shrink-0" />
                         <div>
-                          <p className="text-[13px] font-medium text-foreground">{p.company}</p>
-                          <p className="text-[11px] text-muted-foreground">{p.industry}</p>
+                          <p className="text-[13px] font-medium text-foreground">{p.company ?? "—"}</p>
+                          <p className="text-[11px] text-muted-foreground">{p.industry ?? ""}</p>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline" className="text-[11px] border-border/60 text-muted-foreground">{p.source}</Badge>
+                      <Badge variant="outline" className="text-[11px] border-border/60 text-muted-foreground">{p.source ?? "—"}</Badge>
                     </TableCell>
                     <TableCell>
                       <Badge className={`text-[11px] font-medium ${sc.color}`}>{sc.label}</Badge>
                     </TableCell>
                     <TableCell>
-                      <span className={`text-[13px] font-bold ${SCORE_COLOR(p.score)}`}>{p.score}</span>
+                      <span className={`text-[13px] font-bold ${SCORE_COLOR(score)}`}>{score || "—"}</span>
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-1 text-[12px] text-muted-foreground">
-                        <Clock className="w-3 h-3" /> {p.lastActivity}
+                        <Clock className="w-3 h-3" /> {lastActivity}
                       </div>
                     </TableCell>
                     <TableCell className="pr-5">

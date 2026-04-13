@@ -2,6 +2,8 @@ import { motion } from "framer-motion";
 import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick, ArrowUpRight, Zap, TrendingUp, Activity, Target } from "lucide-react";
 import { StatCard } from "@/components/molecules/stat-card";
 import { useDashboardStats, useDashboardCharts } from "@/hooks/use-dashboard";
+import { useQuery } from "@tanstack/react-query";
+import { getAgentActivityFeed } from "@workspace/api-client-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -17,14 +19,22 @@ const fadeUp = {
   }),
 };
 
-const agentActivities = [
-  { agent: "Outbound Agent",    action: "Enriched 12 leads via Clay",          time: "2m ago",  status: "success", icon: Zap },
-  { agent: "Email Agent",       action: "Sent 8 personalized sequences",        time: "5m ago",  status: "success", icon: Mail },
-  { agent: "Reactivation Bot",  action: "Re-engaged 3 dormant contacts",        time: "14m ago", status: "success", icon: RefreshCcw },
-  { agent: "Outbound Agent",    action: "Waiting on Apollo rate limit",          time: "22m ago", status: "warning", icon: Activity },
-  { agent: "Conversion Agent",  action: "Booked 1 meeting via Cal.com",         time: "1h ago",  status: "success", icon: CalendarCheck },
-];
+const AGENT_ICON: Record<string, React.ElementType> = {
+  outbound: Zap,
+  email: Mail,
+  reactivation: RefreshCcw,
+  conversion: CalendarCheck,
+  meeting: CalendarCheck,
+};
 
+function relativeTime(dateStr: string | null | undefined): string {
+  if (!dateStr) return "";
+  const diff = Math.floor((Date.now() - new Date(dateStr).getTime()) / 1000);
+  if (diff < 60) return `${diff}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
 /* Fallback sparkline-style data when API returns nothing */
 const DEMO_MONTHS = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const DEMO_SENT   = [320, 450, 390, 580, 620, 740];
@@ -42,6 +52,11 @@ const DEMO_FUNNEL  = [
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: charts, isLoading: chartsLoading } = useDashboardCharts();
+  const { data: agentFeed = [] } = useQuery({
+    queryKey: ["stats", "agent-activity"],
+    queryFn: () => getAgentActivityFeed({ credentials: "include" }),
+    refetchInterval: 30000,
+  });
 
   if (statsLoading || chartsLoading) {
     return (
@@ -187,20 +202,29 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent className="pt-3 px-3 pb-4">
               <div className="space-y-1">
-                {agentActivities.map((item, i) => (
-                  <div key={i} className="flex items-start gap-2.5 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                {agentFeed.length === 0 && (
+                  <p className="text-center text-[11px] text-muted-foreground py-6">No agent activity yet. Agents will log actions here.</p>
+                )}
+                {(agentFeed as any[]).map((item, i) => {
+                  const agentType: string = (item.agentType ?? "outbound").toLowerCase();
+                  const IconComp = AGENT_ICON[agentType] ?? Activity;
+                  const isWarning = item.status === "warning" || item.status === "error";
+                  const agentLabel = item.agentName ?? (agentType === "email" ? "Email Agent" : agentType === "reactivation" ? "Reactivation Bot" : agentType === "conversion" ? "Conversion Agent" : "Outbound Agent");
+                  return (
+                  <div key={item.id ?? i} className="flex items-start gap-2.5 p-2 rounded-md hover:bg-muted/50 transition-colors">
                     <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                      item.status === "success" ? "bg-emerald-500/10" : "bg-amber-500/10"
+                      isWarning ? "bg-amber-500/10" : "bg-emerald-500/10"
                     }`}>
-                      <item.icon className={`w-3.5 h-3.5 ${item.status === "success" ? "text-emerald-500" : "text-amber-500"}`} />
+                      <IconComp className={`w-3.5 h-3.5 ${isWarning ? "text-amber-500" : "text-emerald-500"}`} />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-semibold text-foreground/80 truncate">{item.agent}</p>
-                      <p className="text-[11px] text-muted-foreground leading-tight truncate">{item.action}</p>
+                      <p className="text-[11px] font-semibold text-foreground/80 truncate">{agentLabel}</p>
+                      <p className="text-[11px] text-muted-foreground leading-tight truncate">{item.message ?? item.action ?? ""}</p>
                     </div>
-                    <span className="text-[10px] text-muted-foreground/60 shrink-0 pt-0.5">{item.time}</span>
+                    <span className="text-[10px] text-muted-foreground/60 shrink-0 pt-0.5">{relativeTime(item.createdAt ?? item.timestamp)}</span>
                   </div>
-                ))}
+                  );
+                })}
               </div>
               <Link href="/outbound">
                 <Button variant="outline" size="sm" className="w-full mt-3 h-7 text-xs rounded-md border-border hover:bg-muted/60 text-muted-foreground">

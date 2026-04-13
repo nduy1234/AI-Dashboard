@@ -8,18 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ModernAreaChart, ModernBarChart } from "@/components/molecules/charts";
-
-const HISTORY_LABELS = ["Jan", "Feb", "Mar", "Apr 1–7", "Apr 8–13"];
-const HISTORY_RATE   = [0,     0,     0,     0,          0];
-
-const CAMPAIGN_BREAKDOWN = [
-  { name: "Tech Outbound Q2",     sent: 15, replies: 0 },
-  { name: "AI Founders Series",   sent: 10, replies: 0 },
-  { name: "Finance Leaders",      sent: 8,  replies: 0 },
-  { name: "Marketing Leaders",    sent: 7,  replies: 0 },
-  { name: "Cloud Leaders",        sent: 5,  replies: 0 },
-  { name: "Other Campaigns",      sent: 9,  replies: 0 },
-];
+import { useQuery } from "@tanstack/react-query";
+import { getReplyRateStats, getGetReplyRateStatsQueryKey } from "@workspace/api-client-react";
 
 const TIPS = [
   {
@@ -53,12 +43,40 @@ const TIPS = [
 ];
 
 export default function ReplyRateDetail() {
+  const { data, isLoading } = useQuery({
+    queryKey: getGetReplyRateStatsQueryKey(),
+    queryFn: () => getReplyRateStats({ credentials: "include" }),
+  });
+
+  const historyLabels: string[] = (data?.historyLabels ?? []) as string[];
+  const historyRate: number[]   = (data?.historyRate   ?? []) as number[];
+  const campaignBreakdown: any[] = (data?.campaignBreakdown ?? []) as any[];
+  const totalReplies    = (data as any)?.totalReplies    ?? 0;
+  const positiveReplies = (data as any)?.positiveReplies ?? 0;
+  const negativeReplies = (data as any)?.negativeReplies ?? 0;
+  const totalSent       = (data as any)?.totalSent       ?? 0;
+  const overallRate     = totalSent > 0 ? ((totalReplies / totalSent) * 100).toFixed(1) : "0";
+  const awaiting        = Math.max(0, totalSent - totalReplies);
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-24 shimmer rounded-xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-24 shimmer rounded-lg" />)}
+        </div>
+        <div className="h-48 shimmer rounded-lg" />
+        <div className="h-48 shimmer rounded-lg" />
+      </div>
+    );
+  }
+
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6 relative">
       <div className="absolute -top-24 -left-10 w-72 h-72 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
       <div className="absolute top-60 -right-10 w-56 h-56 rounded-full bg-cyan-500/5 blur-3xl pointer-events-none" />
 
-      {/* Dark gradient hero header */}
+      {/* Hero header */}
       <div className="relative overflow-hidden rounded-xl border border-border/60 bg-card card-shadow-md">
         <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/10 via-cyan-500/5 to-transparent pointer-events-none" />
         <div className="absolute -top-12 -right-12 w-40 h-40 rounded-full bg-cyan-500/10 blur-2xl pointer-events-none" />
@@ -72,7 +90,7 @@ export default function ReplyRateDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">Reply Rate</h1>
-              <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-[11px] font-semibold">0%</Badge>
+              <Badge className="bg-cyan-500/10 text-cyan-400 border-cyan-500/20 text-[11px] font-semibold">{overallRate}%</Badge>
             </div>
             <p className="text-[13px] text-muted-foreground mt-0.5">Email reply analytics and response tracking across all campaigns.</p>
           </div>
@@ -80,25 +98,27 @@ export default function ReplyRateDetail() {
         </div>
       </div>
 
-      {/* Summary alert */}
-      <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
-        <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-        <div className="flex-1">
-          <p className="text-[13px] font-semibold text-amber-400">No replies received yet</p>
-          <p className="text-[12px] text-muted-foreground mt-0.5">
-            54 emails were sent between April 9–13. Replies typically arrive within 24–72 hours of sending.
-            The inbox is being monitored — this page will update automatically once replies come in.
-          </p>
+      {/* Summary alert — shown only when 0 replies and emails were sent */}
+      {totalReplies === 0 && totalSent > 0 && (
+        <div className="flex items-start gap-3 p-4 rounded-lg border border-amber-500/20 bg-amber-500/5">
+          <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-amber-400">No replies received yet</p>
+            <p className="text-[12px] text-muted-foreground mt-0.5">
+              {totalSent} emails were sent. Replies typically arrive within 24–72 hours of sending.
+              The inbox is being monitored — this page will update automatically once replies come in.
+            </p>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* KPI cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Total Replies",     value: "0",  icon: Reply,       color: "text-cyan-400",   bg: "bg-cyan-500/10",    sub: "of 54 sent" },
-          { label: "Positive Replies",  value: "0",  icon: ThumbsUp,    color: "text-emerald-400", bg: "bg-emerald-500/10", sub: "interested" },
-          { label: "Negative Replies",  value: "0",  icon: ThumbsDown,  color: "text-red-400",    bg: "bg-red-500/10",     sub: "unsubscribed" },
-          { label: "Awaiting Reply",    value: "51", icon: Inbox,       color: "text-amber-400",  bg: "bg-amber-500/10",   sub: "delivered, pending" },
+          { label: "Total Replies",     value: totalReplies.toString(),    icon: Reply,       color: "text-cyan-400",    bg: "bg-cyan-500/10",    sub: `of ${totalSent} sent` },
+          { label: "Positive Replies",  value: positiveReplies.toString(), icon: ThumbsUp,    color: "text-emerald-400", bg: "bg-emerald-500/10", sub: "interested" },
+          { label: "Negative Replies",  value: negativeReplies.toString(), icon: ThumbsDown,  color: "text-red-400",     bg: "bg-red-500/10",     sub: "unsubscribed" },
+          { label: "Awaiting Reply",    value: awaiting.toString(),        icon: Inbox,       color: "text-amber-400",   bg: "bg-amber-500/10",   sub: "delivered, pending" },
         ].map((k) => (
           <Card key={k.label} className="overflow-hidden">
             <CardContent className="p-4">
@@ -121,15 +141,21 @@ export default function ReplyRateDetail() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-0 pt-4 px-5">
           <CardTitle className="text-[13px] font-semibold">Reply Rate Trend</CardTitle>
-          <CardDescription className="text-xs mt-0.5">Historical reply rate — campaign ramp-up period</CardDescription>
+          <CardDescription className="text-xs mt-0.5">Historical reply rate trend</CardDescription>
         </CardHeader>
         <CardContent className="pt-0 px-2 pb-2">
           <div className="h-44">
-            <ModernAreaChart
-              series={[{ name: "Reply Rate %", data: HISTORY_RATE, color: "#22d3ee" }]}
-              categories={HISTORY_LABELS}
-              height="100%"
-            />
+            {historyLabels.length > 0 ? (
+              <ModernAreaChart
+                series={[{ name: "Reply Rate %", data: historyRate, color: "#22d3ee" }]}
+                categories={historyLabels}
+                height="100%"
+              />
+            ) : (
+              <div className="flex items-center justify-center h-full text-[13px] text-muted-foreground">
+                No history data yet.
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
@@ -138,11 +164,14 @@ export default function ReplyRateDetail() {
       <Card className="overflow-hidden">
         <CardHeader className="pb-0 pt-4 px-5">
           <CardTitle className="text-[13px] font-semibold">Campaign Breakdown</CardTitle>
-          <CardDescription className="text-xs mt-0.5">Replies per campaign (all currently at 0)</CardDescription>
+          <CardDescription className="text-xs mt-0.5">Replies per campaign</CardDescription>
         </CardHeader>
         <CardContent className="pt-3 px-5 pb-4">
+          {campaignBreakdown.length === 0 ? (
+            <p className="text-[13px] text-muted-foreground text-center py-4">No campaign data yet.</p>
+          ) : (
           <div className="space-y-2">
-            {CAMPAIGN_BREAKDOWN.map((c) => (
+            {campaignBreakdown.map((c: any) => (
               <div key={c.name} className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
@@ -162,6 +191,7 @@ export default function ReplyRateDetail() {
               </div>
             ))}
           </div>
+          )}
         </CardContent>
       </Card>
 

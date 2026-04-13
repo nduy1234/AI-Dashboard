@@ -5,6 +5,7 @@
  * Agentic AI Revenue Platform API
  * OpenAPI spec version: 0.1.0
  */
+import type { DashboardStatsTrends } from "./dashboardStatsTrends";
 
 export interface DashboardStats {
   totalProspects: number;
@@ -13,12 +14,5 @@ export interface DashboardStats {
   meetingsBooked: number;
   reactivatedLeads: number;
   websiteConversions: number;
-  trends?: {
-    totalProspects: number | null;
-    emailsSent: number | null;
-    replyRate: number | null;
-    meetingsBooked: number | null;
-    reactivatedLeads: number | null;
-    websiteConversions: number | null;
-  };
+  trends?: DashboardStatsTrends;
 }

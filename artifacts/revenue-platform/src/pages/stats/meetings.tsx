@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
@@ -10,82 +10,10 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useQuery } from "@tanstack/react-query";
+import { getMeetingsStats, getGetMeetingsStatsQueryKey } from "@workspace/api-client-react";
 
-// ─── Meeting data ─────────────────────────────────────────────────────────────
-// April 2026 — 8 meetings booked
-const MEETINGS = [
-  {
-    id: 1, date: 2,  day: "Thu", time: "10:00 AM", duration: 30,
-    title: "Discovery Call",
-    attendee: "Sarah Johnson", company: "TechCorp Inc", title_: "VP of Sales",
-    type: "video", status: "completed", campaign: "Tech Outbound Q2",
-    email: "sarah@techcorp.io", notes: "Discussed AI pipeline acceleration. Interested in pilot.",
-    avatar: "SJ",
-  },
-  {
-    id: 2, date: 4,  day: "Sat", time: "2:00 PM",  duration: 45,
-    title: "Product Demo",
-    attendee: "Mike Chen", company: "DataFlow Ltd", title_: "Head of Engineering",
-    type: "video", status: "completed", campaign: "Tech Outbound Q2",
-    email: "mchen@dataflow.co", notes: "Showed live agent loop. Mike excited about MCP trust gates.",
-    avatar: "MC",
-  },
-  {
-    id: 3, date: 7,  day: "Tue", time: "11:30 AM", duration: 30,
-    title: "Strategic Review",
-    attendee: "Lisa Park", company: "ScaleUp AI", title_: "Chief Revenue Officer",
-    type: "video", status: "completed", campaign: "AI Founders Series",
-    email: "lpark@scaleupai.com", notes: "Reviewed current outbound stack. Strong fit for AI enrichment.",
-    avatar: "LP",
-  },
-  {
-    id: 4, date: 9,  day: "Thu", time: "9:00 AM",  duration: 30,
-    title: "Pricing Discussion",
-    attendee: "David Kim", company: "PropTech Hub", title_: "CTO",
-    type: "phone", status: "completed", campaign: "Real Estate Tech",
-    email: "dkim@proptechhub.com", notes: "Asked about enterprise tier. Budget approved by leadership.",
-    avatar: "DK",
-  },
-  {
-    id: 5, date: 11, day: "Sat", time: "3:30 PM",  duration: 45,
-    title: "Technical Review",
-    attendee: "Natasha Brown", company: "HealthStack", title_: "VP Engineering",
-    type: "video", status: "completed", campaign: "HealthTech Outreach",
-    email: "nbrown@healthstack.io", notes: "Walked through API integrations. Security review requested.",
-    avatar: "NB",
-  },
-  {
-    id: 6, date: 15, day: "Wed", time: "10:30 AM", duration: 60,
-    title: "Contract Review",
-    attendee: "Carlos Mendez", company: "RetailAI Corp", title_: "COO",
-    type: "video", status: "upcoming", campaign: "Retail Automation",
-    email: "carlos@retailai.com", notes: "Legal reviewing SaaS agreement. Decision expected this week.",
-    avatar: "CM",
-  },
-  {
-    id: 7, date: 17, day: "Fri", time: "1:00 PM",  duration: 30,
-    title: "Pilot Program Kick-off",
-    attendee: "Emma Thompson", company: "GrowthLab", title_: "Head of Marketing",
-    type: "video", status: "upcoming", campaign: "Marketing Leaders",
-    email: "emma@growthlab.co", notes: "Pilot scope: 50 leads via Clay + Resend. 2-week test.",
-    avatar: "ET",
-  },
-  {
-    id: 8, date: 22, day: "Wed", time: "4:00 PM",  duration: 45,
-    title: "Quarterly Strategy Alignment",
-    attendee: "Jordan Williams", company: "CloudVentures", title_: "VP Partnerships",
-    type: "video", status: "upcoming", campaign: "Cloud Leaders",
-    email: "jwill@cloudventures.io", notes: "Exploring multi-product partnership for Q3.",
-    avatar: "JW",
-  },
-];
-
-// ─── April 2026 calendar config ───────────────────────────────────────────────
-// April 1 2026 = Wednesday (3). Days: Sun=0…Sat=6.
-const MONTH_YEAR    = "April 2026";
-const DAYS_IN_MONTH = 30;
-const FIRST_DOW     = 3; // Wednesday = 3 (Sun-based index)
-const WEEKDAYS      = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
 const TYPE_CONFIG = {
   video: { label: "Video",  icon: Video, color: "text-primary",    bg: "bg-primary/10"  },
@@ -99,31 +27,69 @@ const STATUS_CONFIG = {
   cancelled: { label: "Cancelled", color: "bg-red-500/10 text-red-400"         },
 };
 
-// Build date → meetings map
-const DATES_WITH_MEETINGS: Record<number, typeof MEETINGS> = {};
-MEETINGS.forEach(m => {
-  if (!DATES_WITH_MEETINGS[m.date]) DATES_WITH_MEETINGS[m.date] = [];
-  DATES_WITH_MEETINGS[m.date].push(m);
-});
-
 export default function MeetingsDetail() {
   const [selectedDate, setSelectedDate] = useState<number | null>(null);
-  const [selectedMeeting, setSelectedMeeting] = useState<typeof MEETINGS[0] | null>(null);
+  const [selectedMeeting, setSelectedMeeting] = useState<any>(null);
+
+  const { data, isLoading } = useQuery({
+    queryKey: getGetMeetingsStatsQueryKey(),
+    queryFn: () => getMeetingsStats({ credentials: "include" }),
+  });
+
+  const meetings: any[] = data?.leads ?? [];
+
+  // Build dynamic calendar from meeting scheduledAt dates
+  const now = new Date();
+  const calYear = now.getFullYear();
+  const calMonth = now.getMonth(); // 0-based
+  const MONTH_YEAR = now.toLocaleString("default", { month: "long", year: "numeric" });
+  const DAYS_IN_MONTH = new Date(calYear, calMonth + 1, 0).getDate();
+  const FIRST_DOW = new Date(calYear, calMonth, 1).getDay();
+  const today = now.getDate();
+
+  // Build date → meetings map from live data
+  const DATES_WITH_MEETINGS = useMemo(() => {
+    const map: Record<number, any[]> = {};
+    meetings.forEach((m: any) => {
+      const d = m.scheduledAt ? new Date(m.scheduledAt) : null;
+      if (d && d.getFullYear() === calYear && d.getMonth() === calMonth) {
+        const day = d.getDate();
+        if (!map[day]) map[day] = [];
+        map[day].push(m);
+      }
+    });
+    return map;
+  }, [meetings, calYear, calMonth]);
 
   const selectedDateMeetings = selectedDate ? (DATES_WITH_MEETINGS[selectedDate] ?? []) : [];
 
-  // Build calendar cells: blanks for padding + day numbers
   const totalCells = FIRST_DOW + DAYS_IN_MONTH;
   const rows = Math.ceil(totalCells / 7);
 
-  const today = 13; // April 13, 2026 (current date per context)
+  const completed = meetings.filter((m: any) => m.status === "completed" || (m.scheduledAt && new Date(m.scheduledAt) < now)).length;
+  const upcoming  = meetings.filter((m: any) => m.status === "upcoming"  || (m.scheduledAt && new Date(m.scheduledAt) >= now)).length;
+  const avgDuration = meetings.length
+    ? Math.round(meetings.reduce((s: number, m: any) => s + (m.duration ?? 30), 0) / meetings.length)
+    : 0;
 
   const kpis = [
-    { label: "Total Meetings",    value: "8",  icon: CalendarCheck, color: "text-emerald-400", bg: "bg-emerald-500/10" },
-    { label: "Completed",         value: "5",  icon: CheckCircle2,  color: "text-primary",     bg: "bg-primary/10"    },
-    { label: "Upcoming",          value: "3",  icon: Calendar,      color: "text-blue-400",    bg: "bg-blue-500/10"   },
-    { label: "Avg Duration",      value: "40m", icon: Clock,        color: "text-amber-400",   bg: "bg-amber-500/10"  },
+    { label: "Total Meetings", value: meetings.length.toString(), icon: CalendarCheck, color: "text-emerald-400", bg: "bg-emerald-500/10" },
+    { label: "Completed",      value: completed.toString(),       icon: CheckCircle2,  color: "text-primary",    bg: "bg-primary/10"    },
+    { label: "Upcoming",       value: upcoming.toString(),        icon: Calendar,      color: "text-blue-400",   bg: "bg-blue-500/10"   },
+    { label: "Avg Duration",   value: avgDuration > 0 ? `${avgDuration}m` : "—", icon: Clock, color: "text-amber-400", bg: "bg-amber-500/10" },
   ];
+
+  if (isLoading) {
+    return (
+      <div className="space-y-6">
+        <div className="h-24 shimmer rounded-xl" />
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+          {[...Array(4)].map((_, i) => <div key={i} className="h-20 shimmer rounded-lg" />)}
+        </div>
+        <div className="h-[480px] shimmer rounded-lg" />
+      </div>
+    );
+  }
 
   return (
     <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.3 }} className="space-y-6 relative">
@@ -144,7 +110,7 @@ export default function MeetingsDetail() {
           <div>
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold text-foreground">Meetings</h1>
-              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[11px] font-semibold">8 Booked</Badge>
+              <Badge className="bg-emerald-500/10 text-emerald-400 border-emerald-500/20 text-[11px] font-semibold">{meetings.length} Booked</Badge>
             </div>
             <p className="text-[13px] text-muted-foreground mt-0.5">All booked meetings from your AI outbound campaigns.</p>
           </div>
@@ -186,6 +152,7 @@ export default function MeetingsDetail() {
                     <ChevronLeft className="w-4 h-4" />
                   </Button>
                   <CardTitle className="text-[14px] font-semibold px-1">{MONTH_YEAR}</CardTitle>
+
                   <Button variant="ghost" size="sm" className="h-7 w-7 p-0 rounded-md hover:bg-muted/60 opacity-30 cursor-not-allowed" disabled>
                     <ChevronRight className="w-4 h-4" />
                   </Button>
@@ -213,8 +180,7 @@ export default function MeetingsDetail() {
                   const dayMeets  = isValid ? (DATES_WITH_MEETINGS[dayNum] ?? []) : [];
                   const isToday   = dayNum === today;
                   const isSelected = selectedDate === dayNum;
-                  const allCompleted = dayMeets.every(m => m.status === "completed");
-                  const hasUpcoming  = dayMeets.some(m => m.status === "upcoming");
+                  const hasUpcoming  = dayMeets.some((m: any) => m.status === "upcoming" || (m.scheduledAt && new Date(m.scheduledAt) >= now));
 
                   return (
                     <div
@@ -238,18 +204,23 @@ export default function MeetingsDetail() {
                           </div>
 
                           {/* Meeting dots / pills */}
-                          {dayMeets.slice(0, 2).map((m, mi) => (
-                            <div
-                              key={mi}
-                              onClick={(e) => { e.stopPropagation(); setSelectedMeeting(m); setSelectedDate(dayNum); }}
-                              className={cn(
-                                "text-[10px] font-semibold px-1.5 py-0.5 rounded-sm truncate mb-0.5 cursor-pointer transition-opacity hover:opacity-80",
-                                m.status === "completed" ? "bg-emerald-500/15 text-emerald-400" : "bg-blue-500/15 text-blue-400"
-                              )}
-                            >
-                              {m.time.replace(" AM","a").replace(" PM","p")} {m.attendee.split(" ")[0]}
-                            </div>
-                          ))}
+                          {dayMeets.slice(0, 2).map((m: any, mi: number) => {
+                            const mTime = m.scheduledAt ? new Date(m.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: true }).replace(" AM","a").replace(" PM","p") : "";
+                            const mName = [m.firstName, m.lastName].filter(Boolean).join(" ").split(" ")[0] || m.email || "";
+                            const isPast = m.scheduledAt ? new Date(m.scheduledAt) < now : false;
+                            return (
+                              <div
+                                key={mi}
+                                onClick={(e) => { e.stopPropagation(); setSelectedMeeting(m); setSelectedDate(dayNum); }}
+                                className={cn(
+                                  "text-[10px] font-semibold px-1.5 py-0.5 rounded-sm truncate mb-0.5 cursor-pointer transition-opacity hover:opacity-80",
+                                  isPast ? "bg-emerald-500/15 text-emerald-400" : "bg-blue-500/15 text-blue-400"
+                                )}
+                              >
+                                {mTime} {mName}
+                              </div>
+                            );
+                          })}
                           {dayMeets.length > 2 && (
                             <div className="text-[10px] text-muted-foreground pl-1">+{dayMeets.length - 2} more</div>
                           )}
@@ -276,10 +247,18 @@ export default function MeetingsDetail() {
                 <CardHeader className="pb-2 pt-4 px-5">
                   <div className="flex items-start justify-between gap-2">
                     <div className="flex-1 min-w-0">
-                      <CardTitle className="text-[14px] font-bold text-foreground">{selectedMeeting.title}</CardTitle>
-                      <Badge className={`text-[10px] mt-1 ${STATUS_CONFIG[selectedMeeting.status as keyof typeof STATUS_CONFIG]?.color ?? ""}`}>
-                        {STATUS_CONFIG[selectedMeeting.status as keyof typeof STATUS_CONFIG]?.label}
-                      </Badge>
+                      <CardTitle className="text-[14px] font-bold text-foreground">
+                        {[selectedMeeting.firstName, selectedMeeting.lastName].filter(Boolean).join(" ") || selectedMeeting.email}
+                      </CardTitle>
+                      {(() => {
+                        const isPast = selectedMeeting.scheduledAt ? new Date(selectedMeeting.scheduledAt) < now : false;
+                        const statusKey = isPast ? "completed" : "upcoming";
+                        return (
+                          <Badge className={`text-[10px] mt-1 ${STATUS_CONFIG[statusKey].color}`}>
+                            {STATUS_CONFIG[statusKey].label}
+                          </Badge>
+                        );
+                      })()}
                     </div>
                     <Button variant="ghost" size="sm" className="h-7 w-7 p-0 shrink-0" onClick={() => setSelectedMeeting(null)}>
                       <ChevronRight className="w-3.5 h-3.5 rotate-180" />
@@ -290,22 +269,21 @@ export default function MeetingsDetail() {
                   {/* Attendee */}
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center text-primary text-[13px] font-bold shrink-0">
-                      {selectedMeeting.avatar}
+                      {([selectedMeeting.firstName, selectedMeeting.lastName].filter(Boolean).map((n: string) => n[0]).join("").slice(0,2).toUpperCase()) || "?"}
                     </div>
                     <div>
-                      <p className="text-[13px] font-semibold text-foreground">{selectedMeeting.attendee}</p>
-                      <p className="text-[11px] text-muted-foreground">{selectedMeeting.title_}</p>
+                      <p className="text-[13px] font-semibold text-foreground">{[selectedMeeting.firstName, selectedMeeting.lastName].filter(Boolean).join(" ")}</p>
+                      <p className="text-[11px] text-muted-foreground">{selectedMeeting.jobTitle ?? ""}</p>
                     </div>
                   </div>
 
                   {/* Details grid */}
                   <div className="space-y-2">
                     {([
-                      { icon: Building2,    label: selectedMeeting.company },
-                      { icon: Clock,        label: `Apr ${selectedMeeting.date}, ${selectedMeeting.time} · ${selectedMeeting.duration} min` },
-                      { icon: TYPE_CONFIG[selectedMeeting.type as keyof typeof TYPE_CONFIG]?.icon ?? Video, label: TYPE_CONFIG[selectedMeeting.type as keyof typeof TYPE_CONFIG]?.label ?? selectedMeeting.type },
-                      { icon: Mail,         label: selectedMeeting.email },
-                      { icon: CalendarCheck, label: selectedMeeting.campaign },
+                      { icon: Building2,    label: selectedMeeting.company ?? "—" },
+                      { icon: Clock,        label: selectedMeeting.scheduledAt ? new Date(selectedMeeting.scheduledAt).toLocaleString() : "—" },
+                      { icon: Mail,         label: selectedMeeting.email ?? "—" },
+                      { icon: CalendarCheck, label: selectedMeeting.campaignName ?? "—" },
                     ] as { icon: React.ElementType; label: string }[]).map((row, i) => (
                       <div key={i} className="flex items-center gap-2 text-[12px] text-muted-foreground">
                         <row.icon className="w-3.5 h-3.5 shrink-0 text-muted-foreground/60" />
@@ -313,14 +291,6 @@ export default function MeetingsDetail() {
                       </div>
                     ))}
                   </div>
-
-                  {/* Notes */}
-                  {selectedMeeting.notes && (
-                    <div className="rounded-md bg-muted/40 p-3">
-                      <p className="text-[11px] font-semibold text-muted-foreground mb-1">Notes</p>
-                      <p className="text-[12px] text-foreground/80 leading-relaxed">{selectedMeeting.notes}</p>
-                    </div>
-                  )}
                 </CardContent>
               </Card>
             </motion.div>
@@ -342,28 +312,44 @@ export default function MeetingsDetail() {
               <CardTitle className="text-[12px] font-semibold text-muted-foreground uppercase tracking-wide">All Meetings</CardTitle>
             </CardHeader>
             <CardContent className="px-2 pb-3 space-y-0.5">
-              {MEETINGS.map((m) => (
-                <button
-                  key={m.id}
-                  onClick={() => { setSelectedMeeting(m); setSelectedDate(m.date); }}
-                  className={cn(
-                    "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left transition-colors hover:bg-muted/50",
-                    selectedMeeting?.id === m.id && "bg-primary/5"
-                  )}
-                >
-                  <div className={cn(
-                    "w-1.5 h-1.5 rounded-full shrink-0",
-                    m.status === "completed" ? "bg-emerald-400" : "bg-blue-400"
-                  )} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[12px] font-semibold text-foreground truncate">{m.attendee}</p>
-                    <p className="text-[11px] text-muted-foreground">Apr {m.date} · {m.time}</p>
-                  </div>
-                  <Badge className={`text-[10px] shrink-0 ${STATUS_CONFIG[m.status as keyof typeof STATUS_CONFIG]?.color ?? ""}`}>
-                    {STATUS_CONFIG[m.status as keyof typeof STATUS_CONFIG]?.label}
-                  </Badge>
-                </button>
-              ))}
+              {meetings.length === 0 && (
+                <p className="text-[12px] text-muted-foreground text-center py-4">No meetings yet.</p>
+              )}
+              {meetings.map((m: any) => {
+                const isPast = m.scheduledAt ? new Date(m.scheduledAt) < now : false;
+                const statusKey = isPast ? "completed" : "upcoming";
+                const displayDate = m.scheduledAt ? new Date(m.scheduledAt).toLocaleDateString() : "—";
+                const displayTime = m.scheduledAt ? new Date(m.scheduledAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "";
+                const mName = [m.firstName, m.lastName].filter(Boolean).join(" ") || m.email || "Unknown";
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => {
+                      const d = m.scheduledAt ? new Date(m.scheduledAt) : null;
+                      if (d && d.getFullYear() === calYear && d.getMonth() === calMonth) {
+                        setSelectedDate(d.getDate());
+                      }
+                      setSelectedMeeting(m);
+                    }}
+                    className={cn(
+                      "w-full flex items-center gap-2.5 px-3 py-2 rounded-md text-left transition-colors hover:bg-muted/50",
+                      selectedMeeting?.id === m.id && "bg-primary/5"
+                    )}
+                  >
+                    <div className={cn(
+                      "w-1.5 h-1.5 rounded-full shrink-0",
+                      isPast ? "bg-emerald-400" : "bg-blue-400"
+                    )} />
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[12px] font-semibold text-foreground truncate">{mName}</p>
+                      <p className="text-[11px] text-muted-foreground">{displayDate} · {displayTime}</p>
+                    </div>
+                    <Badge className={`text-[10px] shrink-0 ${STATUS_CONFIG[statusKey].color}`}>
+                      {STATUS_CONFIG[statusKey].label}
+                    </Badge>
+                  </button>
+                );
+              })}
             </CardContent>
           </Card>
         </div>

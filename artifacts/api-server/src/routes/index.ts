@@ -15,6 +15,7 @@ import knowledgeBaseRouter from "./knowledgeBase";
 import agentLogsRouter from "./agentLogs";
 import settingsRouter from "./settings";
 import outboundRouter from "./outbound";
+import statsRouter from "./stats";
 
 const router: IRouter = Router();
 
@@ -35,5 +36,6 @@ router.use(knowledgeBaseRouter);
 router.use(agentLogsRouter);
 router.use(settingsRouter);
 router.use(outboundRouter);
+router.use(statsRouter);
 
 export default router;

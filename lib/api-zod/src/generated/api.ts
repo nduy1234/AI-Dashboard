@@ -144,15 +144,6 @@ export const LogoutMobileSessionResponse = zod.object({
 /**
  * @summary Get dashboard overview stats
  */
-const _TrendFields = zod.object({
-  totalProspects: zod.number().nullable(),
-  emailsSent: zod.number().nullable(),
-  replyRate: zod.number().nullable(),
-  meetingsBooked: zod.number().nullable(),
-  reactivatedLeads: zod.number().nullable(),
-  websiteConversions: zod.number().nullable(),
-});
-
 export const GetDashboardStatsResponse = zod.object({
   totalProspects: zod.number(),
   emailsSent: zod.number(),
@@ -160,7 +151,16 @@ export const GetDashboardStatsResponse = zod.object({
   meetingsBooked: zod.number(),
   reactivatedLeads: zod.number(),
   websiteConversions: zod.number(),
-  trends: _TrendFields.optional(),
+  trends: zod
+    .object({
+      totalProspects: zod.number().optional(),
+      emailsSent: zod.number().optional(),
+      replyRate: zod.number().optional(),
+      meetingsBooked: zod.number().optional(),
+      reactivatedLeads: zod.number().optional(),
+      websiteConversions: zod.number().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -1229,3 +1229,121 @@ export const IngestCrmWebhookBody = zod.object({
   campaignId: zod.number().optional(),
   leadId: zod.number().optional(),
 });
+
+/**
+ * @summary Get emails sent detail stats
+ */
+export const GetEmailsStatsResponse = zod.object({
+  kpi: zod.object({
+    totalSent: zod.number(),
+    delivered: zod.number(),
+    opened: zod.number(),
+    bounced: zod.number(),
+    replied: zod.number(),
+  }),
+  sendVolume: zod.object({
+    labels: zod.array(zod.string()),
+    data: zod.array(zod.number()),
+  }),
+  emails: zod.array(
+    zod.object({
+      id: zod.number(),
+      to: zod.string(),
+      name: zod.string(),
+      subject: zod.string(),
+      campaign: zod.string(),
+      sentAt: zod.string().nullable(),
+      status: zod.string(),
+      opened: zod.boolean(),
+      replied: zod.boolean(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get meetings booked detail stats
+ */
+export const GetMeetingsStatsResponse = zod.object({
+  total: zod.number(),
+  campaigns: zod.array(
+    zod.object({
+      id: zod.number().optional(),
+      name: zod.string().optional(),
+      meetings: zod.number().optional(),
+      sent: zod.number().optional(),
+      replies: zod.number().optional(),
+    }),
+  ),
+  leads: zod.array(zod.record(zod.string(), zod.unknown())),
+  monthlyTrend: zod.array(
+    zod.object({
+      label: zod.string(),
+      value: zod.number(),
+    }),
+  ),
+});
+
+/**
+ * @summary Get reply rate trend and campaign breakdown
+ */
+export const GetReplyRateStatsResponse = zod.object({
+  campaignBreakdown: zod.array(
+    zod.object({
+      campaign: zod.string(),
+      sent: zod.number(),
+      replies: zod.number(),
+      rate: zod.number(),
+    }),
+  ),
+  historyLabels: zod.array(zod.string()),
+  historyRate: zod.array(zod.number()),
+});
+
+/**
+ * @summary Get reactivation leads and campaign stats
+ */
+export const GetReactivationsStatsResponse = zod.object({
+  stats: zod.object({
+    dormantLeads: zod.number(),
+    campaigns: zod.number(),
+    reEngaged: zod.number(),
+    meetings: zod.number(),
+    totalSent: zod.number(),
+    totalReplies: zod.number(),
+  }),
+  leads: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Get conversions / closed deals stats
+ */
+export const GetConversionsStatsResponse = zod.object({
+  stats: zod.object({
+    totalConversions: zod.number(),
+    totalARR: zod.number(),
+    avgDaysToClose: zod.number(),
+    avgDealValue: zod.number(),
+  }),
+  conversions: zod.array(zod.record(zod.string(), zod.unknown())),
+});
+
+/**
+ * @summary Get recent agent activity feed
+ */
+export const getAgentActivityFeedQueryLimitDefault = 20;
+
+export const GetAgentActivityFeedQueryParams = zod.object({
+  limit: zod.coerce.number().default(getAgentActivityFeedQueryLimitDefault),
+});
+
+export const GetAgentActivityFeedResponseItem = zod.object({
+  id: zod.number(),
+  agent: zod.string(),
+  action: zod.string(),
+  status: zod.string(),
+  details: zod.string().nullish(),
+  timestamp: zod.string(),
+});
+export const GetAgentActivityFeedResponse = zod.array(
+  GetAgentActivityFeedResponseItem,
+);

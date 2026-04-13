@@ -14,6 +14,7 @@ import { useLeads } from "@/hooks/use-leads";
 import { useCampaigns } from "@/hooks/use-campaigns";
 import { useAIReactivation } from "@/hooks/use-ai";
 import { useToast } from "@/hooks/use-toast";
+import { useIntegrations } from "@/hooks/use-integrations";
 
 const statusColor: Record<string, string> = {
   new: "bg-blue-500/10 text-blue-400",
@@ -28,7 +29,18 @@ export default function Reactivation() {
   const [activeTab, setActiveTab] = useState("crm-import");
   const { data: leads, isLoading: leadsLoading } = useLeads();
   const { data: campaigns, isLoading: campaignsLoading } = useCampaigns();
+  const { data: integrations = [] } = useIntegrations();
   const reactivationMutation = useAIReactivation();
+
+  // Filter CRM integrations from live data; fall back to known CRM names if none returned
+  const CRM_NAMES = ["HubSpot", "GoHighLevel", "Salesforce", "Pipedrive", "Zoho CRM"];
+  const crmIntegrations = (integrations as any[]).filter(
+    (i: any) => i.category === "crm" || CRM_NAMES.some(n => i.name?.toLowerCase().includes(n.toLowerCase())),
+  );
+  // If API returned no integrations yet, show fallback known CRMs all as disconnected
+  const displayCRMs = crmIntegrations.length > 0
+    ? crmIntegrations
+    : CRM_NAMES.slice(0, 3).map(name => ({ id: name, name, status: "disconnected", description: "Connect to scan" }));
 
   const dormantLeads = leads?.filter(l => l.source === "reactivation") ?? [];
   const reactivationCampaigns = campaigns?.filter(c => c.type === "reactivation") ?? [];
@@ -96,26 +108,28 @@ export default function Reactivation() {
                 <CardDescription>Import dormant leads from your connected CRM platform.</CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {[
-                  { name: "HubSpot", status: "connected", leads: "1,240 dormant leads found" },
-                  { name: "GoHighLevel", status: "disconnected", leads: "Connect to scan" },
-                  { name: "Salesforce", status: "disconnected", leads: "Connect to scan" },
-                ].map(crm => (
-                  <div key={crm.name} className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
+                {displayCRMs.map((crm: any) => {
+                  const isConnected = crm.status === "connected" || crm.apiKeyConfigured;
+                  const leadsLabel = isConnected
+                    ? (crm.description ?? crm.config?.dormantCount ? `${crm.config.dormantCount} dormant leads found` : "Sync to scan for dormant leads")
+                    : "Connect to scan";
+                  return (
+                  <div key={crm.id ?? crm.name} className="flex items-center justify-between p-4 rounded-lg border border-border bg-muted/20">
                     <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
                         <Link2 className="h-5 w-5 text-primary" />
                       </div>
                       <div>
                         <p className="font-medium">{crm.name}</p>
-                        <p className="text-xs text-muted-foreground">{crm.leads}</p>
+                        <p className="text-xs text-muted-foreground">{leadsLabel}</p>
                       </div>
                     </div>
-                    <Button variant={crm.status === "connected" ? "default" : "outline"} size="sm">
-                      {crm.status === "connected" ? "Import Leads" : "Connect"}
+                    <Button variant={isConnected ? "default" : "outline"} size="sm">
+                      {isConnected ? "Import Leads" : "Connect"}
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
               </CardContent>
             </Card>
 
