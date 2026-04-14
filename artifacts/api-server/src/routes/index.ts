@@ -17,6 +17,7 @@ import settingsRouter from "./settings";
 import outboundRouter from "./outbound";
 import statsRouter from "./stats";
 import reactivationRouter from "./reactivation";
+import billingRouter from "./billing";
 
 const router: IRouter = Router();
 
@@ -39,5 +40,6 @@ router.use(settingsRouter);
 router.use(outboundRouter);
 router.use(statsRouter);
 router.use(reactivationRouter);
+router.use(billingRouter);
 
 export default router;

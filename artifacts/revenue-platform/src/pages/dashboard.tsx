@@ -9,6 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { ModernAreaChart, MixedChart, ModernBarChart } from "@/components/molecules/charts";
+import { TrialBanner } from "@/components/molecules/trial-banner";
+import { useRefreshSubscription } from "@/hooks/use-subscription";
+import { useEffect } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 12 },
@@ -46,6 +49,20 @@ const EMPTY_FUNNEL = [
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: charts, isLoading: chartsLoading } = useDashboardCharts();
+  const refreshSubscription = useRefreshSubscription();
+
+  // When Stripe redirects back with ?subscription=success, refresh the cache
+  // so the banner reflects the new subscription state immediately.
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("subscription") === "success") {
+      refreshSubscription();
+      // Remove the query param without a full page reload
+      const url = new URL(window.location.href);
+      url.searchParams.delete("subscription");
+      window.history.replaceState({}, "", url.toString());
+    }
+  }, [refreshSubscription]);
 
   const { data: agentFeed = [] } = useQuery({
     queryKey: ["stats", "agent-activity"],
@@ -98,6 +115,9 @@ export default function Dashboard() {
 
   return (
     <motion.div initial="hidden" animate="show" className="space-y-5 md:space-y-6">
+      {/* Trial / subscription status banner */}
+      <TrialBanner />
+
       {/* Header */}
       <motion.div variants={fadeUp} custom={0}>
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">

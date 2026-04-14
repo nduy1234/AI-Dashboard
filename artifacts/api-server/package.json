@@ -27,6 +27,7 @@
     "jsonwebtoken": "^9.0.3",
     "node-fetch": "^3.3.2",
     "openid-client": "^6.0.0",
+    "stripe": "^22.0.1",
     "svix": "^1.90.0",
     "swagger-ui-express": "^5.0.1",
     "undici": "^8.0.2",

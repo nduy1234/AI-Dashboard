@@ -1,4 +1,11 @@
 import { Router, type IRouter } from "express";
+import Stripe from "stripe";
+import {
+  handleCheckoutSessionCompleted,
+  handleSubscriptionUpdated,
+  handleInvoicePaymentSucceeded,
+  handleInvoicePaymentFailed,
+} from "../services/billingService";
 import {
   normalizeSendingEvent,
   verifyProviderWebhookSignature,
@@ -397,6 +404,80 @@ router.post("/webhooks/inbound/:provider", async (req, res): Promise<void> => {
   });
 
   res.status(202).json(result);
+});
+
+// ---------------------------------------------------------------------------
+// Stripe Webhook
+// POST /webhooks/stripe
+//
+// Stripe signs every event with STRIPE_WEBHOOK_SECRET (whsec_...).
+// The raw body captured in app.ts is used for signature verification.
+// Events handled:
+//   checkout.session.completed      → create subscription record, anti-abuse check
+//   customer.subscription.updated   → keep status in sync (trial→active/past_due)
+//   invoice.payment_succeeded       → confirm active status after trial conversion
+//   invoice.payment_failed          → mark past_due, front-end restricts features
+// ---------------------------------------------------------------------------
+router.post("/webhooks/stripe", async (req, res): Promise<void> => {
+  const secret = process.env.STRIPE_WEBHOOK_SECRET;
+  if (!secret) {
+    console.error("[Billing/Webhook] STRIPE_WEBHOOK_SECRET is not set");
+    res.status(500).json({ error: "Webhook secret not configured" });
+    return;
+  }
+
+  const signature = req.get("stripe-signature");
+  if (!signature) {
+    res.status(400).json({ error: "Missing stripe-signature header" });
+    return;
+  }
+
+  const rawBody = (req as unknown as { rawBody?: string }).rawBody;
+  if (!rawBody) {
+    res.status(400).json({ error: "Raw body unavailable" });
+    return;
+  }
+
+  let event: Stripe.Event;
+  try {
+    const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!);
+    event = stripe.webhooks.constructEvent(rawBody, signature, secret);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : "Signature verification failed";
+    console.warn("[Billing/Webhook] Signature verification failed:", msg);
+    res.status(400).json({ error: msg });
+    return;
+  }
+
+  console.log(`[Billing/Webhook] ← ${event.type}  id=${event.id}`);
+
+  try {
+    switch (event.type) {
+      case "checkout.session.completed":
+        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        break;
+      case "customer.subscription.updated":
+      case "customer.subscription.created":
+        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        break;
+      case "invoice.payment_succeeded":
+        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        break;
+      case "invoice.payment_failed":
+        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        break;
+      default:
+        // Acknowledge but don't process unhandled events
+        break;
+    }
+  } catch (err) {
+    console.error(`[Billing/Webhook] Error processing ${event.type}:`, err);
+    // Return 500 so Stripe retries the event
+    res.status(500).json({ error: "Internal processing error" });
+    return;
+  }
+
+  res.json({ received: true });
 });
 
 export default router;
