@@ -6,6 +6,7 @@ import { seedDatabase } from "./seed";
 // by enforcing IPv4 resolution for all fetch API requests.
 setGlobalDispatcher(new Agent({ connect: { family: 4 } }));
 import { startOutboundWorker } from "./lib/outboundQueue";
+import { startReactivationWorkers } from "./services/reactivationService";
 
 const isDev = process.env.NODE_ENV !== "production";
 const rawPort = process.env["PORT"] || (isDev ? "5000" : undefined);
@@ -38,6 +39,7 @@ app.listen(port, async () => {
   }
   
   startOutboundWorker();
+  startReactivationWorkers();
   try {
     await seedDatabase();
   } catch (err) {

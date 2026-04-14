@@ -1,4 +1,4 @@
-import { pgTable, serial, text, varchar, integer, boolean, timestamp, doublePrecision } from "drizzle-orm/pg-core";
+import { pgTable, serial, text, varchar, integer, boolean, timestamp, doublePrecision, index } from "drizzle-orm/pg-core";
 
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod/v4";
@@ -22,11 +22,18 @@ export const leadsTable = pgTable("leads", {
   dealStage: varchar("deal_stage"),
   dealValue: doublePrecision("deal_value"),
   notes: text("notes"),
+  /** External CRM record ID (e.g. HubSpot deal/contact ID) — used for dedup and sync */
+  crmId: varchar("crm_id"),
+  /** Reason the deal was originally lost, sourced from the CRM during reactivation scan */
+  lostReason: text("lost_reason"),
   userId: varchar("user_id"),
   orgId: integer("org_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+}, (t) => [
+  index("leads_email_idx").on(t.email),
+  index("leads_crm_id_idx").on(t.crmId),
+]);
 
 export const insertLeadSchema = createInsertSchema(leadsTable).omit({ id: true, createdAt: true, updatedAt: true });
 export type InsertLead = z.infer<typeof insertLeadSchema>;

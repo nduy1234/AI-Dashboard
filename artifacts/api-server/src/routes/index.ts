@@ -15,6 +15,10 @@ import knowledgeBaseRouter from "./knowledgeBase";
 import agentLogsRouter from "./agentLogs";
 import settingsRouter from "./settings";
 import outboundRouter from "./outbound";
+import statsRouter from "./stats";
+import reactivationRouter from "./reactivation";
+import billingRouter from "./billing";
+import userMeRouter from "./userMe";
 
 const router: IRouter = Router();
 
@@ -35,5 +39,9 @@ router.use(knowledgeBaseRouter);
 router.use(agentLogsRouter);
 router.use(settingsRouter);
 router.use(outboundRouter);
+router.use(statsRouter);
+router.use(reactivationRouter);
+router.use(billingRouter);
+router.use(userMeRouter);
 
 export default router;

@@ -306,6 +306,53 @@ export async function findRecentCampaignForEmail(email: string) {
 }
 
 /**
+ * Resolve the most recent campaign/lead for an email address.
+ *
+ * Attribution priority:
+ *  1. `outbound_messages` — preferred (contains send timestamp and external_message_id)
+ *  2. `campaign_leads`    — fallback when outbound_messages is empty, which happens
+ *                           when emails were dispatched via Resend/Instantly directly
+ *                           without going through the outbound_messages write path.
+ */
+/**
+ * Resolve campaign/lead by the Resend external_message_id stored at send time.
+ * Most precise attribution method — one email_id maps to exactly one send.
+ */
+export async function findCampaignByExternalMessageId(externalMessageId: string) {
+  const [match] = await db
+    .select({
+      leadId:     outboundMessagesTable.leadId,
+      campaignId: outboundMessagesTable.campaignId,
+    })
+    .from(outboundMessagesTable)
+    .where(eq(outboundMessagesTable.externalMessageId, externalMessageId))
+    .limit(1);
+
+  return match ?? null;
+}
+
+export async function findCampaignByRecipientEmail(email: string) {
+  // 1. Primary: outbound_messages (has send metadata)
+  const msgMatch = await findRecentCampaignForEmail(email);
+  if (msgMatch) return msgMatch;
+
+  // 2. Fallback: campaign_leads join — covers the common case where emails were sent
+  //    by the agent but outbound_messages rows were not written.
+  const [clMatch] = await db
+    .select({
+      leadId: leadsTable.id,
+      campaignId: campaignLeadsTable.campaignId,
+    })
+    .from(campaignLeadsTable)
+    .innerJoin(leadsTable, eq(campaignLeadsTable.leadId, leadsTable.id))
+    .where(eq(leadsTable.email, email))
+    .orderBy(desc(campaignLeadsTable.createdAt))
+    .limit(1);
+
+  return clMatch ?? null;
+}
+
+/**
  * Fallback for TEST_EMAIL_OVERRIDE mode: when all emails are redirected to a
  * single test address, real lead emails won't match the reply sender.  Return
  * the most recently sent outbound message so the reply is still attributed to

@@ -39,6 +39,8 @@ tags:
     description: Phase 1 outbound orchestration jobs and reporting
   - name: webhooks
     description: External provider webhook ingestion
+  - name: stats
+    description: Drill-down stats detail pages
 paths:
   /healthz:
     get:
@@ -1302,6 +1304,92 @@ paths:
               schema:
                 $ref: "#/components/schemas/WebhookAck"
 
+  /stats/emails:
+    get:
+      operationId: getEmailsStats
+      tags: [stats]
+      summary: Get emails sent detail stats
+      responses:
+        "200":
+          description: Email stats and log
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EmailsStatsResponse"
+
+  /stats/meetings:
+    get:
+      operationId: getMeetingsStats
+      tags: [stats]
+      summary: Get meetings booked detail stats
+      responses:
+        "200":
+          description: Meetings stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MeetingsStatsResponse"
+
+  /stats/reply-rate:
+    get:
+      operationId: getReplyRateStats
+      tags: [stats]
+      summary: Get reply rate trend and campaign breakdown
+      responses:
+        "200":
+          description: Reply rate stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReplyRateStatsResponse"
+
+  /stats/reactivations:
+    get:
+      operationId: getReactivationsStats
+      tags: [stats]
+      summary: Get reactivation leads and campaign stats
+      responses:
+        "200":
+          description: Reactivation stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReactivationsStatsResponse"
+
+  /stats/conversions:
+    get:
+      operationId: getConversionsStats
+      tags: [stats]
+      summary: Get conversions / closed deals stats
+      responses:
+        "200":
+          description: Conversion stats
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversionsStatsResponse"
+
+  /stats/agent-activity:
+    get:
+      operationId: getAgentActivityFeed
+      tags: [stats]
+      summary: Get recent agent activity feed
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        "200":
+          description: Agent activity feed
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AgentActivityItem"
+
 components:
   securitySchemes:
     bearerAuth:
@@ -2492,3 +2580,193 @@ components:
           type: boolean
         deduplicated:
           type: boolean
+
+    EmailLogItem:
+      type: object
+      required: [id, to, name, subject, campaign, sentAt, status, opened, replied]
+      properties:
+        id:
+          type: integer
+        to:
+          type: string
+        name:
+          type: string
+        subject:
+          type: string
+        campaign:
+          type: string
+        sentAt:
+          type: string
+          nullable: true
+        status:
+          type: string
+        opened:
+          type: boolean
+        replied:
+          type: boolean
+
+    EmailsStatsResponse:
+      type: object
+      required: [kpi, sendVolume, emails]
+      properties:
+        kpi:
+          type: object
+          required: [totalSent, delivered, opened, bounced, replied]
+          properties:
+            totalSent:
+              type: integer
+            delivered:
+              type: integer
+            opened:
+              type: integer
+            bounced:
+              type: integer
+            replied:
+              type: integer
+        sendVolume:
+          type: object
+          required: [labels, data]
+          properties:
+            labels:
+              type: array
+              items:
+                type: string
+            data:
+              type: array
+              items:
+                type: integer
+        emails:
+          type: array
+          items:
+            $ref: "#/components/schemas/EmailLogItem"
+
+    MeetingsStatsResponse:
+      type: object
+      required: [total, campaigns, leads, monthlyTrend]
+      properties:
+        total:
+          type: integer
+        campaigns:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: integer
+              name:
+                type: string
+              meetings:
+                type: integer
+              sent:
+                type: integer
+              replies:
+                type: integer
+        leads:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        monthlyTrend:
+          type: array
+          items:
+            type: object
+            required: [label, value]
+            properties:
+              label:
+                type: string
+              value:
+                type: integer
+
+    ReplyRateStatsResponse:
+      type: object
+      required: [campaignBreakdown, historyLabels, historyRate]
+      properties:
+        campaignBreakdown:
+          type: array
+          items:
+            type: object
+            required: [campaign, sent, replies, rate]
+            properties:
+              campaign:
+                type: string
+              sent:
+                type: integer
+              replies:
+                type: integer
+              rate:
+                type: number
+        historyLabels:
+          type: array
+          items:
+            type: string
+        historyRate:
+          type: array
+          items:
+            type: number
+
+    ReactivationsStatsResponse:
+      type: object
+      required: [stats, leads]
+      properties:
+        stats:
+          type: object
+          required: [dormantLeads, campaigns, reEngaged, meetings, totalSent, totalReplies]
+          properties:
+            dormantLeads:
+              type: integer
+            campaigns:
+              type: integer
+            reEngaged:
+              type: integer
+            meetings:
+              type: integer
+            totalSent:
+              type: integer
+            totalReplies:
+              type: integer
+        leads:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    ConversionsStatsResponse:
+      type: object
+      required: [stats, conversions]
+      properties:
+        stats:
+          type: object
+          required: [totalConversions, totalARR, avgDaysToClose, avgDealValue]
+          properties:
+            totalConversions:
+              type: integer
+            totalARR:
+              type: number
+            avgDaysToClose:
+              type: number
+            avgDealValue:
+              type: number
+        conversions:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+
+    AgentActivityItem:
+      type: object
+      required: [id, agent, action, status, timestamp]
+      properties:
+        id:
+          type: integer
+        agent:
+          type: string
+        action:
+          type: string
+        status:
+          type: string
+        details:
+          type: string
+          nullable: true
+        timestamp:
+          type: string
+

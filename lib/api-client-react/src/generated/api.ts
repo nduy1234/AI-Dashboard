@@ -27,6 +27,7 @@ import type {
   AIQualifyLeadResult,
   AIReactivationBody,
   AIReactivationResult,
+  AgentActivityItem,
   AgentLog,
   AnalyticsOverview,
   ApiKey,
@@ -36,6 +37,7 @@ import type {
   BeginBrowserLoginParams,
   Campaign,
   CampaignAnalytics,
+  ConversionsStatsResponse,
   CreateApiKeyBody,
   CreateCampaignBody,
   CreateEmailAccountBody,
@@ -45,7 +47,9 @@ import type {
   DashboardCharts,
   DashboardStats,
   EmailAccount,
+  EmailsStatsResponse,
   ErrorEnvelope,
+  GetAgentActivityFeedParams,
   GetAnalyticsOverviewParams,
   GetGoogleAuthStartParams,
   GoogleAuthExchangeRequest,
@@ -62,6 +66,7 @@ import type {
   ListCampaignsParams,
   ListLeadsParams,
   LogoutSuccess,
+  MeetingsStatsResponse,
   MobileTokenExchangeRequest,
   MobileTokenExchangeSuccess,
   OutboundCampaignPerformance,
@@ -77,6 +82,8 @@ import type {
   OutboundPipelineStats,
   OutboundRunAllBody,
   PromptTemplate,
+  ReactivationsStatsResponse,
+  ReplyRateStatsResponse,
   TeamMember,
   UpdateCampaignBody,
   UpdateIntegrationBody,
@@ -5535,3 +5542,481 @@ export const useIngestCrmWebhook = <
 > => {
   return useMutation(getIngestCrmWebhookMutationOptions(options));
 };
+
+/**
+ * @summary Get emails sent detail stats
+ */
+export const getGetEmailsStatsUrl = () => {
+  return `/api/v1/stats/emails`;
+};
+
+export const getEmailsStats = async (
+  options?: RequestInit,
+): Promise<EmailsStatsResponse> => {
+  return customFetch<EmailsStatsResponse>(getGetEmailsStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetEmailsStatsQueryKey = () => {
+  return [`/api/v1/stats/emails`] as const;
+};
+
+export const getGetEmailsStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getEmailsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetEmailsStatsQueryKey();
+
+  const queryFn: QueryFunction<Awaited<ReturnType<typeof getEmailsStats>>> = ({
+    signal,
+  }) => getEmailsStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailsStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetEmailsStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getEmailsStats>>
+>;
+export type GetEmailsStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get emails sent detail stats
+ */
+
+export function useGetEmailsStats<
+  TData = Awaited<ReturnType<typeof getEmailsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getEmailsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetEmailsStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get meetings booked detail stats
+ */
+export const getGetMeetingsStatsUrl = () => {
+  return `/api/v1/stats/meetings`;
+};
+
+export const getMeetingsStats = async (
+  options?: RequestInit,
+): Promise<MeetingsStatsResponse> => {
+  return customFetch<MeetingsStatsResponse>(getGetMeetingsStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetMeetingsStatsQueryKey = () => {
+  return [`/api/v1/stats/meetings`] as const;
+};
+
+export const getGetMeetingsStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getMeetingsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMeetingsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetMeetingsStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getMeetingsStats>>
+  > = ({ signal }) => getMeetingsStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getMeetingsStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetMeetingsStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getMeetingsStats>>
+>;
+export type GetMeetingsStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get meetings booked detail stats
+ */
+
+export function useGetMeetingsStats<
+  TData = Awaited<ReturnType<typeof getMeetingsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getMeetingsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetMeetingsStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get reply rate trend and campaign breakdown
+ */
+export const getGetReplyRateStatsUrl = () => {
+  return `/api/v1/stats/reply-rate`;
+};
+
+export const getReplyRateStats = async (
+  options?: RequestInit,
+): Promise<ReplyRateStatsResponse> => {
+  return customFetch<ReplyRateStatsResponse>(getGetReplyRateStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetReplyRateStatsQueryKey = () => {
+  return [`/api/v1/stats/reply-rate`] as const;
+};
+
+export const getGetReplyRateStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReplyRateStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReplyRateStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReplyRateStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReplyRateStats>>
+  > = ({ signal }) => getReplyRateStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReplyRateStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReplyRateStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReplyRateStats>>
+>;
+export type GetReplyRateStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get reply rate trend and campaign breakdown
+ */
+
+export function useGetReplyRateStats<
+  TData = Awaited<ReturnType<typeof getReplyRateStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReplyRateStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReplyRateStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get reactivation leads and campaign stats
+ */
+export const getGetReactivationsStatsUrl = () => {
+  return `/api/v1/stats/reactivations`;
+};
+
+export const getReactivationsStats = async (
+  options?: RequestInit,
+): Promise<ReactivationsStatsResponse> => {
+  return customFetch<ReactivationsStatsResponse>(
+    getGetReactivationsStatsUrl(),
+    {
+      ...options,
+      method: "GET",
+    },
+  );
+};
+
+export const getGetReactivationsStatsQueryKey = () => {
+  return [`/api/v1/stats/reactivations`] as const;
+};
+
+export const getGetReactivationsStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getReactivationsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReactivationsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetReactivationsStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getReactivationsStats>>
+  > = ({ signal }) => getReactivationsStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getReactivationsStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetReactivationsStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getReactivationsStats>>
+>;
+export type GetReactivationsStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get reactivation leads and campaign stats
+ */
+
+export function useGetReactivationsStats<
+  TData = Awaited<ReturnType<typeof getReactivationsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getReactivationsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetReactivationsStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get conversions / closed deals stats
+ */
+export const getGetConversionsStatsUrl = () => {
+  return `/api/v1/stats/conversions`;
+};
+
+export const getConversionsStats = async (
+  options?: RequestInit,
+): Promise<ConversionsStatsResponse> => {
+  return customFetch<ConversionsStatsResponse>(getGetConversionsStatsUrl(), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetConversionsStatsQueryKey = () => {
+  return [`/api/v1/stats/conversions`] as const;
+};
+
+export const getGetConversionsStatsQueryOptions = <
+  TData = Awaited<ReturnType<typeof getConversionsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getConversionsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey = queryOptions?.queryKey ?? getGetConversionsStatsQueryKey();
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getConversionsStats>>
+  > = ({ signal }) => getConversionsStats({ signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getConversionsStats>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetConversionsStatsQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getConversionsStats>>
+>;
+export type GetConversionsStatsQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get conversions / closed deals stats
+ */
+
+export function useGetConversionsStats<
+  TData = Awaited<ReturnType<typeof getConversionsStats>>,
+  TError = ErrorType<unknown>,
+>(options?: {
+  query?: UseQueryOptions<
+    Awaited<ReturnType<typeof getConversionsStats>>,
+    TError,
+    TData
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetConversionsStatsQueryOptions(options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}
+
+/**
+ * @summary Get recent agent activity feed
+ */
+export const getGetAgentActivityFeedUrl = (
+  params?: GetAgentActivityFeedParams,
+) => {
+  const normalizedParams = new URLSearchParams();
+
+  Object.entries(params || {}).forEach(([key, value]) => {
+    if (value !== undefined) {
+      normalizedParams.append(key, value === null ? "null" : value.toString());
+    }
+  });
+
+  const stringifiedParams = normalizedParams.toString();
+
+  return stringifiedParams.length > 0
+    ? `/api/v1/stats/agent-activity?${stringifiedParams}`
+    : `/api/v1/stats/agent-activity`;
+};
+
+export const getAgentActivityFeed = async (
+  params?: GetAgentActivityFeedParams,
+  options?: RequestInit,
+): Promise<AgentActivityItem[]> => {
+  return customFetch<AgentActivityItem[]>(getGetAgentActivityFeedUrl(params), {
+    ...options,
+    method: "GET",
+  });
+};
+
+export const getGetAgentActivityFeedQueryKey = (
+  params?: GetAgentActivityFeedParams,
+) => {
+  return [`/api/v1/stats/agent-activity`, ...(params ? [params] : [])] as const;
+};
+
+export const getGetAgentActivityFeedQueryOptions = <
+  TData = Awaited<ReturnType<typeof getAgentActivityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentActivityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentActivityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+) => {
+  const { query: queryOptions, request: requestOptions } = options ?? {};
+
+  const queryKey =
+    queryOptions?.queryKey ?? getGetAgentActivityFeedQueryKey(params);
+
+  const queryFn: QueryFunction<
+    Awaited<ReturnType<typeof getAgentActivityFeed>>
+  > = ({ signal }) =>
+    getAgentActivityFeed(params, { signal, ...requestOptions });
+
+  return { queryKey, queryFn, ...queryOptions } as UseQueryOptions<
+    Awaited<ReturnType<typeof getAgentActivityFeed>>,
+    TError,
+    TData
+  > & { queryKey: QueryKey };
+};
+
+export type GetAgentActivityFeedQueryResult = NonNullable<
+  Awaited<ReturnType<typeof getAgentActivityFeed>>
+>;
+export type GetAgentActivityFeedQueryError = ErrorType<unknown>;
+
+/**
+ * @summary Get recent agent activity feed
+ */
+
+export function useGetAgentActivityFeed<
+  TData = Awaited<ReturnType<typeof getAgentActivityFeed>>,
+  TError = ErrorType<unknown>,
+>(
+  params?: GetAgentActivityFeedParams,
+  options?: {
+    query?: UseQueryOptions<
+      Awaited<ReturnType<typeof getAgentActivityFeed>>,
+      TError,
+      TData
+    >;
+    request?: SecondParameter<typeof customFetch>;
+  },
+): UseQueryResult<TData, TError> & { queryKey: QueryKey } {
+  const queryOptions = getGetAgentActivityFeedQueryOptions(params, options);
+
+  const query = useQuery(queryOptions) as UseQueryResult<TData, TError> & {
+    queryKey: QueryKey;
+  };
+
+  return { ...query, queryKey: queryOptions.queryKey };
+}

@@ -36,6 +36,8 @@ import {
   Megaphone,
   ArrowUpRight,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Users,
   Mail,
   Sparkles,
@@ -115,8 +117,10 @@ export default function Campaigns() {
   const openAnalytics = (c: CampaignAnalyticsData) => setAnalyticsCampaign(c);
   const closeAnalytics = () => setAnalyticsCampaign(null);
 
-  // Campaign table search
+  // Campaign table search & pagination
   const [search, setSearch] = useState("");
+  const [currentPage, setCurrentPage] = useState(1);
+  const PAGE_SIZE = 10;
 
   // Dialog state
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -291,6 +295,8 @@ export default function Campaigns() {
   const displayData = (campaigns || []).filter((c) =>
     c.name.toLowerCase().includes(search.toLowerCase())
   );
+  const totalPages = Math.max(1, Math.ceil(displayData.length / PAGE_SIZE));
+  const paginatedData = displayData.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
 
   return (
@@ -310,10 +316,10 @@ export default function Campaigns() {
 
       <PageHeader 
         title="Campaigns" 
-        description="Manage your active automated outbound and reactivation sequences."
+        description="Manage your automated outbound and reactivation sequences."
       >
-        <Button className="gap-2 bg-primary" onClick={() => setDialogOpen(true)}>
-          <Megaphone className="w-4 h-4" /> Create Campaign
+        <Button className="gradient-primary text-white shadow-lg hover:opacity-90 transition-opacity h-8 px-4 text-sm rounded-xl border-0 gap-1.5" onClick={() => setDialogOpen(true)}>
+          <Megaphone className="w-3.5 h-3.5" /> New Campaign
         </Button>
       </PageHeader>
 
@@ -327,8 +333,8 @@ export default function Campaigns() {
       }}>
         <DialogContent className="sm:max-w-2xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Create New Campaign</DialogTitle>
-            <p className="text-sm text-muted-foreground pt-1">
+            <DialogTitle className="text-base font-semibold gradient-text">Create New Campaign</DialogTitle>
+            <p className="text-xs text-muted-foreground pt-1">
               The AI agent handles lead sourcing &amp; email writing autonomously. Expand the optional sections below to override with your own selection.
             </p>
           </DialogHeader>
@@ -376,7 +382,7 @@ export default function Campaigns() {
               {/* ── Optional: Leads ─────────────────────────────── */}
               <Collapsible open={leadsOpen} onOpenChange={setLeadsOpen}>
                 <CollapsibleTrigger asChild>
-                  <button className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-sm font-medium hover:bg-muted/60 transition-colors">
+                  <button className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-4 py-2.5 text-sm font-medium hover:bg-muted/40 hover:border-primary/20 transition-all">
                     <div className="flex items-center gap-2">
                       <Users className="h-4 w-4 text-primary" />
                       <span>Manually select leads</span>
@@ -456,7 +462,7 @@ export default function Campaigns() {
               {/* ── Optional: Email Sequence ─────────────────────── */}
               <Collapsible open={seqOpen} onOpenChange={setSeqOpen}>
                 <CollapsibleTrigger asChild>
-                  <button className="flex w-full items-center justify-between rounded-lg border border-border/60 bg-muted/30 px-4 py-3 text-sm font-medium hover:bg-muted/60 transition-colors">
+                  <button className="flex w-full items-center justify-between rounded-xl border border-border/60 bg-muted/20 px-4 py-2.5 text-sm font-medium hover:bg-muted/40 hover:border-primary/20 transition-all">
                     <div className="flex items-center gap-2">
                       <Mail className="h-4 w-4 text-primary" />
                       <span>Add email sequence</span>
@@ -556,9 +562,11 @@ export default function Campaigns() {
             </div>
           </ScrollArea>
 
-          <DialogFooter className="pt-2 border-t border-border/50 mt-2">
-            <Button variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+          <DialogFooter className="pt-3 border-t border-border/40 mt-2">
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)}>Cancel</Button>
             <Button
+              size="sm"
+              className="gradient-primary text-white border-0 hover:opacity-90"
               onClick={handleCreate}
               disabled={!formName.trim() || !formType || createMutation.isPending}
             >
@@ -568,83 +576,104 @@ export default function Campaigns() {
         </DialogContent>
       </Dialog>
 
-      <div className="flex items-center justify-between mb-6">
-        <div className="relative w-72">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
+        <div className="relative w-full sm:w-72">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
           <Input 
-            placeholder="Search campaigns..." 
-            className="pl-9 bg-card border-border/50"
+            placeholder="Search campaigns…" 
+            className="pl-9 h-9 text-sm bg-muted/40 border-border/50 rounded-xl focus:bg-card"
             value={search}
-            onChange={(e) => setSearch(e.target.value)}
+            onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
           />
         </div>
+        <p className="text-xs text-muted-foreground shrink-0">
+          {displayData.length} campaign{displayData.length !== 1 ? "s" : ""}
+        </p>
       </div>
 
-      <div className="bg-card border border-border/50 rounded-2xl overflow-hidden shadow-sm">
-        <table className="w-full text-sm text-left">
-          <thead className="bg-muted/30 text-muted-foreground border-b border-border/50">
-            <tr>
-              <th className="px-6 py-4 font-medium">Campaign Name</th>
-              <th className="px-6 py-4 font-medium">Status</th>
-              <th className="px-6 py-4 font-medium">Type</th>
-              <th className="px-6 py-4 font-medium">Sent</th>
-              <th className="px-6 py-4 font-medium">Open Rate</th>
-              <th className="px-6 py-4 font-medium">Reply Rate</th>
-              <th className="px-6 py-4 font-medium">Meetings</th>
-              <th className="px-6 py-4 text-right">Actions</th>
+      <div className="bg-card border border-border/50 rounded-2xl overflow-hidden">
+        <div className="overflow-x-auto">
+        <table className="w-full text-sm text-left min-w-[640px]">
+          <thead>
+            <tr className="border-b border-border/50">
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Campaign Name</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Status</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Type</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Sent</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Open Rate</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Reply Rate</th>
+              <th className="px-5 py-3.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground/70">Meetings</th>
+              <th className="px-5 py-3.5 text-right"></th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-border/50">
+          <tbody className="divide-y divide-border/40">
             {isLoading ? (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-muted-foreground">Loading campaigns...</td>
+                <td colSpan={8} className="py-16 text-center">
+                  <div className="flex flex-col items-center gap-3 text-muted-foreground">
+                    <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span className="text-sm">Loading campaigns…</span>
+                  </div>
+                </td>
               </tr>
             ) : (
-              displayData.map((campaign) => (
+              paginatedData.map((campaign) => (
                 <>
-                  <tr key={campaign.id} className="hover:bg-muted/30 transition-colors">
-                    <td className="px-6 py-4 font-medium text-foreground">{campaign.name}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium border ${
-                        campaign.status === 'active' ? 'bg-green-500/10 text-green-600 border-green-500/20' :
-                        campaign.status === 'paused' ? 'bg-yellow-500/10 text-yellow-600 border-yellow-500/20' :
-                        'bg-muted text-muted-foreground border-border'
+                  <tr key={campaign.id} className="group hover:bg-primary/3 transition-colors duration-150">
+                    <td className="px-5 py-3.5 font-medium text-foreground">{campaign.name}</td>
+                    <td className="px-5 py-3.5">
+                      <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold ${
+                        campaign.status === 'active'
+                          ? 'bg-emerald-500/10 text-emerald-500 shadow-[0_0_8px_rgb(16,185,129,0.15)]'
+                          : campaign.status === 'paused'
+                          ? 'bg-amber-500/10 text-amber-500'
+                          : 'bg-muted/60 text-muted-foreground'
                       }`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${
+                          campaign.status === 'active' ? 'bg-emerald-500' :
+                          campaign.status === 'paused' ? 'bg-amber-500' : 'bg-muted-foreground'
+                        }`} />
                         {campaign.status.charAt(0).toUpperCase() + campaign.status.slice(1)}
                       </span>
                     </td>
-                    <td className="px-6 py-4 text-muted-foreground capitalize">{campaign.type}</td>
-                    <td className="px-6 py-4">{(campaign.sentCount ?? 0).toLocaleString()}</td>
-                    <td className="px-6 py-4">
-                      {(campaign.sentCount ?? 0) > 0 ? (((campaign.openCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : '-'}
+                    <td className="px-5 py-3.5">
+                      <span className="text-xs text-muted-foreground capitalize bg-muted/50 px-2 py-0.5 rounded-md">
+                        {campaign.type}
+                      </span>
                     </td>
-                    <td className="px-6 py-4">
-                      {(campaign.sentCount ?? 0) > 0 ? (((campaign.replyCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : '-'}
+                    <td className="px-5 py-3.5 text-foreground/80">{(campaign.sentCount ?? 0).toLocaleString()}</td>
+                    <td className="px-5 py-3.5 text-foreground/80">
+                      {(campaign.sentCount ?? 0) > 0 ? (((campaign.openCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : <span className="text-muted-foreground/50">—</span>}
                     </td>
-                    <td className="px-6 py-4 font-semibold text-foreground">{campaign.meetingsBooked}</td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-5 py-3.5 text-foreground/80">
+                      {(campaign.sentCount ?? 0) > 0 ? (((campaign.replyCount ?? 0) / (campaign.sentCount ?? 0)) * 100).toFixed(1) + '%' : <span className="text-muted-foreground/50">—</span>}
+                    </td>
+                    <td className="px-5 py-3.5">
+                      <span className="font-semibold text-foreground">{campaign.meetingsBooked}</span>
+                    </td>
+                    <td className="px-5 py-3.5 text-right">
+                      <div className="flex items-center justify-end gap-1 opacity-60 group-hover:opacity-100 transition-opacity">
                         <Button 
                           variant="ghost" 
                           size="icon" 
-                          className="h-8 w-8 rounded-full"
+                          className="h-7 w-7 rounded-lg hover:bg-muted"
                           onClick={() => handleToggleStatus(campaign.id, campaign.status, campaign.name)}
                           disabled={campaign.status === 'draft'}
                         >
                           {campaign.status === 'active' ? (
-                            <Pause className="w-4 h-4 text-muted-foreground hover:text-yellow-600" />
+                            <Pause className="w-3.5 h-3.5 text-amber-500" />
                           ) : (
-                            <Play className="w-4 h-4 text-muted-foreground hover:text-green-600" />
+                            <Play className="w-3.5 h-3.5 text-emerald-500" />
                           )}
                         </Button>
                         
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                              <MoreHorizontal className="w-4 h-4" />
+                            <Button variant="ghost" size="icon" className="h-7 w-7 rounded-lg hover:bg-muted">
+                              <MoreHorizontal className="w-3.5 h-3.5" />
                             </Button>
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
+                          <DropdownMenuContent align="end" className="text-sm">
                             <DropdownMenuItem
                               className="cursor-pointer"
                               onClick={() => {
@@ -652,7 +681,7 @@ export default function Campaigns() {
                                 addInlineBar(campaign.id);
                               }}
                             >
-                              <Activity className="mr-2 h-4 w-4" /> View Pipeline
+                              <Activity className="mr-2 h-3.5 w-3.5" /> View Pipeline
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               className="cursor-pointer"
@@ -667,7 +696,7 @@ export default function Campaigns() {
                                 meetingsBooked: campaign.meetingsBooked ?? 0,
                               })}
                             >
-                              <ArrowUpRight className="mr-2 h-4 w-4" /> View Analytics
+                              <ArrowUpRight className="mr-2 h-3.5 w-3.5" /> View Analytics
                             </DropdownMenuItem>
                             <DropdownMenuItem className="cursor-pointer">Edit Sequence</DropdownMenuItem>
                             <DropdownMenuItem className="cursor-pointer text-destructive focus:text-destructive">Delete</DropdownMenuItem>
@@ -695,7 +724,50 @@ export default function Campaigns() {
             )}
           </tbody>
         </table>
+        </div>
       </div>
+
+      {/* ── Pagination ──────────────────────────────────────────────── */}
+      {!isLoading && displayData.length > PAGE_SIZE && (
+        <div className="flex items-center justify-between mt-4 px-1">
+          <p className="text-xs text-muted-foreground">
+            Showing {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, displayData.length)} of {displayData.length} campaigns
+          </p>
+          <div className="flex items-center gap-1">
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 rounded-lg"
+              disabled={currentPage === 1}
+              onClick={() => setCurrentPage((p) => p - 1)}
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </Button>
+            {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
+              <Button
+                key={page}
+                variant={page === currentPage ? "default" : "outline"}
+                size="icon"
+                className={`h-7 w-7 rounded-lg text-xs ${
+                  page === currentPage ? "bg-primary text-primary-foreground" : ""
+                }`}
+                onClick={() => setCurrentPage(page)}
+              >
+                {page}
+              </Button>
+            ))}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-7 w-7 rounded-lg"
+              disabled={currentPage === totalPages}
+              onClick={() => setCurrentPage((p) => p + 1)}
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </Button>
+          </div>
+        </div>
+      )}
     </motion.div>
   );
 }

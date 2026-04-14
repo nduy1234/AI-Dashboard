@@ -1,5 +1,5 @@
 export { useAuth } from "./use-auth";
-export type { AuthUser } from "./use-auth";
+export type { AuthUser, RegisterData, RegisterResult } from "./use-auth";
 export {
   clearPersistedAuthCache,
   getPersistedAccessToken,

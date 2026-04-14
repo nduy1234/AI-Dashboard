@@ -100,6 +100,15 @@ export interface ErrorEnvelope {
   error: string;
 }
 
+export type DashboardStatsTrends = {
+  totalProspects?: number;
+  emailsSent?: number;
+  replyRate?: number;
+  meetingsBooked?: number;
+  reactivatedLeads?: number;
+  websiteConversions?: number;
+};
+
 export interface DashboardStats {
   totalProspects: number;
   emailsSent: number;
@@ -107,14 +116,7 @@ export interface DashboardStats {
   meetingsBooked: number;
   reactivatedLeads: number;
   websiteConversions: number;
-  trends?: {
-    totalProspects: number | null;
-    emailsSent: number | null;
-    replyRate: number | null;
-    meetingsBooked: number | null;
-    reactivatedLeads: number | null;
-    websiteConversions: number | null;
-  };
+  trends?: DashboardStatsTrends;
 }
 
 export interface ChartDataPoint {
@@ -702,6 +704,113 @@ export interface WebhookAck {
   deduplicated?: boolean;
 }
 
+export interface EmailLogItem {
+  id: number;
+  to: string;
+  name: string;
+  subject: string;
+  campaign: string;
+  sentAt: string | null;
+  status: string;
+  opened: boolean;
+  replied: boolean;
+}
+
+export type EmailsStatsResponseKpi = {
+  totalSent: number;
+  delivered: number;
+  opened: number;
+  bounced: number;
+  replied: number;
+};
+
+export type EmailsStatsResponseSendVolume = {
+  labels: string[];
+  data: number[];
+};
+
+export interface EmailsStatsResponse {
+  kpi: EmailsStatsResponseKpi;
+  sendVolume: EmailsStatsResponseSendVolume;
+  emails: EmailLogItem[];
+}
+
+export type MeetingsStatsResponseCampaignsItem = {
+  id?: number;
+  name?: string;
+  meetings?: number;
+  sent?: number;
+  replies?: number;
+};
+
+export type MeetingsStatsResponseLeadsItem = { [key: string]: unknown };
+
+export type MeetingsStatsResponseMonthlyTrendItem = {
+  label: string;
+  value: number;
+};
+
+export interface MeetingsStatsResponse {
+  total: number;
+  campaigns: MeetingsStatsResponseCampaignsItem[];
+  leads: MeetingsStatsResponseLeadsItem[];
+  monthlyTrend: MeetingsStatsResponseMonthlyTrendItem[];
+}
+
+export type ReplyRateStatsResponseCampaignBreakdownItem = {
+  campaign: string;
+  sent: number;
+  replies: number;
+  rate: number;
+};
+
+export interface ReplyRateStatsResponse {
+  campaignBreakdown: ReplyRateStatsResponseCampaignBreakdownItem[];
+  historyLabels: string[];
+  historyRate: number[];
+}
+
+export type ReactivationsStatsResponseStats = {
+  dormantLeads: number;
+  campaigns: number;
+  reEngaged: number;
+  meetings: number;
+  totalSent: number;
+  totalReplies: number;
+};
+
+export type ReactivationsStatsResponseLeadsItem = { [key: string]: unknown };
+
+export interface ReactivationsStatsResponse {
+  stats: ReactivationsStatsResponseStats;
+  leads: ReactivationsStatsResponseLeadsItem[];
+}
+
+export type ConversionsStatsResponseStats = {
+  totalConversions: number;
+  totalARR: number;
+  avgDaysToClose: number;
+  avgDealValue: number;
+};
+
+export type ConversionsStatsResponseConversionsItem = {
+  [key: string]: unknown;
+};
+
+export interface ConversionsStatsResponse {
+  stats: ConversionsStatsResponseStats;
+  conversions: ConversionsStatsResponseConversionsItem[];
+}
+
+export interface AgentActivityItem {
+  id: number;
+  agent: string;
+  action: string;
+  status: string;
+  details?: string | null;
+  timestamp: string;
+}
+
 export type AuthorizationSessionHeaderParameter = string;
 
 export type GetGoogleAuthStartParams = {
@@ -736,5 +845,9 @@ export type GetAnalyticsOverviewParams = {
 
 export type ListAgentLogsParams = {
   agentType?: string;
+  limit?: number;
+};
+
+export type GetAgentActivityFeedParams = {
   limit?: number;
 };
