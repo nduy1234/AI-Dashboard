@@ -10,9 +10,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Switch } from "@/components/ui/switch";
+import { Separator } from "@/components/ui/separator";
 import { useAuth } from "@workspace/replit-auth-web";
-import { Settings as SettingsIcon, Users, Key, FileText, Shield, Plus, Trash2, Copy, Check } from "lucide-react";
+import {
+  Settings as SettingsIcon, Users, Key, FileText, Shield, Plus, Trash2, Copy,
+  Check, User, CreditCard, Zap, Calendar, Clock, AlertTriangle, ExternalLink,
+  CheckCircle2, XCircle,
+} from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useUserMe, useBillingPortal, useStartTrial } from "@/hooks/use-subscription";
+import { UpgradeModal } from "@/components/molecules/upgrade-modal";
+import { cn } from "@/lib/utils";
 import {
   listTeamMembers,
   listApiKeys,
@@ -30,9 +38,12 @@ import {
 } from "@workspace/api-client-react";
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState("general");
+  const [activeTab, setActiveTab] = useState("profile");
   const { user } = useAuth();
   const queryClient = useQueryClient();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
+  const { user: meUser, isPro, status, daysLeft, isLoading: subLoading } = useUserMe();
+  const portalMutation = useBillingPortal();
   const [newKeyName, setNewKeyName] = useState("");
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
@@ -79,11 +90,214 @@ export default function SettingsPage() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="bg-muted/50 h-auto flex-wrap gap-1">
+          <TabsTrigger value="profile" className="gap-1.5"><User className="w-3.5 h-3.5" />Profile</TabsTrigger>
           <TabsTrigger value="general">General</TabsTrigger>
           <TabsTrigger value="team">Team</TabsTrigger>
           <TabsTrigger value="api-keys">API Keys</TabsTrigger>
           <TabsTrigger value="prompts">Prompts</TabsTrigger>
         </TabsList>
+
+        {/* ── Profile + Subscription ─────────────────────────────────────── */}
+        <TabsContent value="profile" className="mt-6">
+          <UpgradeModal open={upgradeOpen} onOpenChange={setUpgradeOpen} />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            {/* Profile card */}
+            <Card className="lg:col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-[15px]">
+                  <User className="w-4 h-4" /> Profile
+                </CardTitle>
+                <CardDescription>Your account details</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-5">
+                {/* Avatar */}
+                <div className="flex items-center gap-4">
+                  {user?.profileImageUrl ? (
+                    <img src={user.profileImageUrl} alt="avatar"
+                      className="w-14 h-14 rounded-full ring-2 ring-border object-cover" />
+                  ) : (
+                    <div className="w-14 h-14 rounded-full bg-primary/15 flex items-center justify-center text-xl font-bold text-primary">
+                      {(user?.firstName?.[0] ?? user?.email?.[0] ?? "U").toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm truncate">
+                      {user?.firstName && user?.lastName
+                        ? `${user.firstName} ${user.lastName}`
+                        : user?.email ?? "—"}
+                    </p>
+                    <p className="text-xs text-muted-foreground truncate">{user?.email ?? "—"}</p>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3 text-[13px]">
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">First name</span>
+                    <span className="font-medium">{user?.firstName ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last name</span>
+                    <span className="font-medium">{user?.lastName ?? "—"}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Email</span>
+                    <span className="font-medium truncate max-w-[160px]">{user?.email ?? "—"}</span>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Subscription card */}
+            <Card className="lg:col-span-2">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-[15px]">
+                  <CreditCard className="w-4 h-4" /> Subscription
+                </CardTitle>
+                <CardDescription>Your current plan and billing details</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {subLoading ? (
+                  <div className="flex items-center gap-3 py-6 justify-center text-muted-foreground text-sm">
+                    <div className="w-4 h-4 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+                    Loading subscription…
+                  </div>
+                ) : (
+                  <>
+                    {/* Plan row */}
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className={cn(
+                          "w-10 h-10 rounded-xl flex items-center justify-center",
+                          isPro ? "bg-primary/15 text-primary" : "bg-muted text-muted-foreground",
+                        )}>
+                          <Zap className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-sm">
+                            {isPro ? "Pro Plan" : "Free Plan"}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {isPro ? "$149 / month" : "Limited access"}
+                          </p>
+                        </div>
+                      </div>
+                      <PlanBadge status={status} isPro={isPro} />
+                    </div>
+
+                    <Separator />
+
+                    {/* Details grid */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <DetailCell
+                        icon={<CheckCircle2 className="w-4 h-4" />}
+                        label="Status"
+                        value={<PlanBadge status={status} isPro={isPro} />}
+                      />
+                      <DetailCell
+                        icon={<Calendar className="w-4 h-4" />}
+                        label={status === "trialing" ? "Trial ends" : "Next billing"}
+                        value={
+                          meUser?.subscriptionExpiry
+                            ? new Date(meUser.subscriptionExpiry).toLocaleDateString("en-US", {
+                                month: "long", day: "numeric", year: "numeric",
+                              })
+                            : "—"
+                        }
+                      />
+                      <DetailCell
+                        icon={<Clock className="w-4 h-4" />}
+                        label={status === "trialing" ? "Trial days left" : "Days until renewal"}
+                        value={
+                          daysLeft !== null
+                            ? <span className={cn(
+                                "font-semibold",
+                                daysLeft <= 3 ? "text-amber-500" : "text-foreground",
+                              )}>{daysLeft} day{daysLeft !== 1 ? "s" : ""}</span>
+                            : "—"
+                        }
+                      />
+                      <DetailCell
+                        icon={<CreditCard className="w-4 h-4" />}
+                        label="Payment method"
+                        value={meUser?.stripeCustomerId ? "Card on file ✓" : "None"}
+                      />
+                    </div>
+
+                    {/* What's included */}
+                    <div className="rounded-lg border border-border/50 bg-muted/30 p-4 space-y-2">
+                      <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">
+                        {isPro ? "Your Pro features" : "Free plan includes"}
+                      </p>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-1.5 gap-x-4">
+                        {(isPro ? PRO_FEATURES : FREE_FEATURES).map((f) => (
+                          <div key={f} className="flex items-center gap-2 text-[12px]">
+                            <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                            <span className="text-foreground/80">{f}</span>
+                          </div>
+                        ))}
+                        {!isPro && LOCKED_FEATURES.map((f) => (
+                          <div key={f} className="flex items-center gap-2 text-[12px]">
+                            <XCircle className="w-3.5 h-3.5 text-muted-foreground/40 shrink-0" />
+                            <span className="text-muted-foreground/50 line-through">{f}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* past_due warning */}
+                    {status === "past_due" && (
+                      <div className="flex items-center gap-2.5 rounded-lg border border-red-500/20 bg-red-500/10 text-red-500 dark:text-red-400 px-4 py-3 text-[13px]">
+                        <AlertTriangle className="w-4 h-4 shrink-0" />
+                        <span className="font-medium">Payment failed.</span>
+                        <span className="opacity-80">Update your payment method to restore access.</span>
+                      </div>
+                    )}
+
+                    {/* CTA buttons */}
+                    <div className="flex flex-wrap gap-2 pt-1">
+                      {isPro || status === "trialing" ? (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-[12px] gap-1.5"
+                          onClick={() => portalMutation.mutate({})}
+                          disabled={portalMutation.isPending}
+                        >
+                          <ExternalLink className="w-3.5 h-3.5" />
+                          {portalMutation.isPending ? "Opening…" : "Manage Subscription"}
+                        </Button>
+                      ) : (
+                        <Button
+                          size="sm"
+                          className="h-8 text-[12px] gap-1.5 bg-primary hover:bg-primary/90 text-primary-foreground"
+                          onClick={() => setUpgradeOpen(true)}
+                        >
+                          <Zap className="w-3.5 h-3.5" />
+                          Upgrade to Pro
+                        </Button>
+                      )}
+                      {(status === "past_due") && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="h-8 text-[12px] gap-1.5"
+                          onClick={() => portalMutation.mutate({})}
+                          disabled={portalMutation.isPending}
+                        >
+                          <CreditCard className="w-3.5 h-3.5" />
+                          Update Payment
+                        </Button>
+                      )}
+                    </div>
+                  </>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="general" className="mt-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -369,5 +583,70 @@ export default function SettingsPage() {
         </TabsContent>
       </Tabs>
     </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+const PRO_FEATURES = [
+  "Unlimited prospects",
+  "Unlimited campaigns",
+  "AI outbound agent",
+  "Reactivation workflows",
+  "HubSpot / CRM sync",
+  "Advanced analytics",
+  "Priority support",
+];
+
+const FREE_FEATURES = [
+  "Up to 100 prospects",
+  "1 active campaign",
+  "Basic analytics",
+  "Email support",
+];
+
+const LOCKED_FEATURES = [
+  "AI outbound agent",
+  "Reactivation workflows",
+  "HubSpot / CRM sync",
+  "Priority support",
+];
+
+type StatusVariant = "none" | "trialing" | "active" | "canceled" | "past_due" | "unpaid" | "incomplete" | "incomplete_expired" | "paused";
+
+function PlanBadge({ status, isPro }: { status: StatusVariant | string; isPro: boolean }) {
+  const cfg: Record<string, { label: string; className: string }> = {
+    active:   { label: "Active",    className: "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/20" },
+    trialing: { label: "Trial",     className: "bg-primary/15 text-primary border-primary/20" },
+    past_due: { label: "Past Due",  className: "bg-red-500/15 text-red-500 border-red-500/20" },
+    canceled: { label: "Canceled",  className: "bg-muted text-muted-foreground border-border" },
+    unpaid:   { label: "Unpaid",    className: "bg-red-500/15 text-red-500 border-red-500/20" },
+    none:     { label: "Free",      className: "bg-muted text-muted-foreground border-border" },
+  };
+  const { label, className } = cfg[status] ?? cfg.none;
+  return (
+    <span className={cn("inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold border", className)}>
+      {label}
+    </span>
+  );
+}
+
+function DetailCell({
+  icon, label, value,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-start gap-2.5 p-3 rounded-lg bg-muted/40 border border-border/40">
+      <div className="text-muted-foreground mt-0.5 shrink-0">{icon}</div>
+      <div className="min-w-0">
+        <p className="text-[11px] text-muted-foreground mb-0.5">{label}</p>
+        <div className="text-[13px] font-medium">{value}</div>
+      </div>
+    </div>
   );
 }

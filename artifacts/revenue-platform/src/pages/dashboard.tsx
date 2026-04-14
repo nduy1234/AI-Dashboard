@@ -1,5 +1,5 @@
-import { motion } from "framer-motion";
-import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick, ArrowUpRight, Zap, TrendingUp, Activity, Target } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Users, Mail, Reply, CalendarCheck, RefreshCcw, MousePointerClick, ArrowUpRight, Zap, TrendingUp, Activity, Target, Loader2, CheckCircle2 } from "lucide-react";
 import { StatCard } from "@/components/molecules/stat-card";
 import { useDashboardStats, useDashboardCharts } from "@/hooks/use-dashboard";
 import { useQuery } from "@tanstack/react-query";
@@ -10,8 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Link } from "wouter";
 import { ModernAreaChart, MixedChart, ModernBarChart } from "@/components/molecules/charts";
 import { TrialBanner } from "@/components/molecules/trial-banner";
-import { useRefreshSubscription } from "@/hooks/use-subscription";
-import { useEffect } from "react";
+import { useUpgradePolling } from "@/hooks/use-subscription";
+import { useEffect, useState } from "react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 12 },
@@ -49,20 +49,28 @@ const EMPTY_FUNNEL = [
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: charts, isLoading: chartsLoading } = useDashboardCharts();
-  const refreshSubscription = useRefreshSubscription();
 
-  // When Stripe redirects back with ?subscription=success, refresh the cache
-  // so the banner reflects the new subscription state immediately.
+  // Detect post-payment redirect (?subscription=success)
+  const [pollActive, setPollActive] = useState(() => {
+    const p = new URLSearchParams(window.location.search);
+    return p.get("subscription") === "success";
+  });
+
+  // Strip the query param from the URL immediately (no page reload)
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("subscription") === "success") {
-      refreshSubscription();
-      // Remove the query param without a full page reload
-      const url = new URL(window.location.href);
-      url.searchParams.delete("subscription");
-      window.history.replaceState({}, "", url.toString());
-    }
-  }, [refreshSubscription]);
+    if (!pollActive) return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete("subscription");
+    window.history.replaceState({}, "", url.toString());
+  }, [pollActive]);
+
+  // Poll /user/me every 2s until isPro flips true (webhook has landed)
+  const { isPolling, isConfirmed, timedOut } = useUpgradePolling(pollActive);
+
+  // Stop polling once confirmed or timed out
+  useEffect(() => {
+    if (isConfirmed || timedOut) setPollActive(false);
+  }, [isConfirmed, timedOut]);
 
   const { data: agentFeed = [] } = useQuery({
     queryKey: ["stats", "agent-activity"],
@@ -115,8 +123,35 @@ export default function Dashboard() {
 
   return (
     <motion.div initial="hidden" animate="show" className="space-y-5 md:space-y-6">
-      {/* Trial / subscription status banner */}
-      <TrialBanner />
+      {/* Post-payment processing banner — shown while webhook is in-flight */}
+      <AnimatePresence>
+        {(isPolling || isConfirmed) && (
+          <motion.div
+            key="upgrade-processing"
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.25 }}
+            className={`flex items-center gap-3 px-4 py-2.5 rounded-lg border text-[13px] font-medium ${
+              isConfirmed
+                ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20"
+                : "bg-primary/10 text-primary border-primary/20"
+            }`}
+          >
+            {isConfirmed ? (
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+            ) : (
+              <Loader2 className="w-4 h-4 shrink-0 animate-spin" />
+            )}
+            {isConfirmed
+              ? "You're now on Pro! Welcome to the full platform."
+              : "Processing your upgrade — this takes just a moment…"}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Trial / subscription status banner — hidden while polling */}
+      {!isPolling && !isConfirmed && <TrialBanner />}
 
       {/* Header */}
       <motion.div variants={fadeUp} custom={0}>

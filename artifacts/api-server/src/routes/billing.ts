@@ -21,20 +21,21 @@ router.post("/billing/checkout", async (req, res): Promise<void> => {
   const userId = req.user!.id;
   const userEmail = req.user!.email ?? undefined;
 
-  const origin =
-    (req.body as Record<string, unknown>).successUrl
-      ? undefined
-      : `${req.protocol}://${req.get("host")}`;
+  // Use PUBLIC_URL so Stripe redirects to the frontend origin, not the API origin.
+  // Falls back to reconstructing from the request if PUBLIC_URL is not set.
+  const frontendOrigin =
+    process.env.PUBLIC_URL?.replace(/\/$/, "") ||
+    `${req.protocol}://${req.get("host")}`;
 
   const successUrl =
     typeof (req.body as Record<string, unknown>).successUrl === "string"
       ? (req.body as Record<string, string>).successUrl
-      : `${origin}/dashboard?subscription=success`;
+      : `${frontendOrigin}/?subscription=success`;
 
   const cancelUrl =
     typeof (req.body as Record<string, unknown>).cancelUrl === "string"
       ? (req.body as Record<string, string>).cancelUrl
-      : `${origin}/dashboard?subscription=canceled`;
+      : `${frontendOrigin}/?subscription=canceled`;
 
   try {
     const session = await createCheckoutSession(userId, userEmail, successUrl, cancelUrl);
@@ -63,11 +64,13 @@ router.post("/billing/portal", async (req, res): Promise<void> => {
     return;
   }
 
-  const origin = `${req.protocol}://${req.get("host")}`;
+  const frontendOrigin =
+    process.env.PUBLIC_URL?.replace(/\/$/, "") ||
+    `${req.protocol}://${req.get("host")}`;
   const returnUrl =
     typeof (req.body as Record<string, unknown>).returnUrl === "string"
       ? (req.body as Record<string, string>).returnUrl
-      : `${origin}/dashboard`;
+      : `${frontendOrigin}/`;
 
   try {
     const portalSession = await createPortalSession(sub.stripeCustomerId, returnUrl);

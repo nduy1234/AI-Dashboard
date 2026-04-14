@@ -454,20 +454,19 @@ router.post("/webhooks/stripe", async (req, res): Promise<void> => {
   try {
     switch (event.type) {
       case "checkout.session.completed":
-        await handleCheckoutSessionCompleted(event.data.object as Stripe.Checkout.Session);
+        await handleCheckoutSessionCompleted(event);
         break;
       case "customer.subscription.updated":
       case "customer.subscription.created":
-        await handleSubscriptionUpdated(event.data.object as Stripe.Subscription);
+        await handleSubscriptionUpdated(event);
         break;
       case "invoice.payment_succeeded":
-        await handleInvoicePaymentSucceeded(event.data.object as Stripe.Invoice);
+        await handleInvoicePaymentSucceeded(event);
         break;
       case "invoice.payment_failed":
-        await handleInvoicePaymentFailed(event.data.object as Stripe.Invoice);
+        await handleInvoicePaymentFailed(event);
         break;
       default:
-        // Acknowledge but don't process unhandled events
         break;
     }
   } catch (err) {

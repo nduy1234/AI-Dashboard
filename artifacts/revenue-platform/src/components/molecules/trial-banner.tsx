@@ -1,11 +1,8 @@
 import { AlertTriangle, Clock, CreditCard, X, Zap } from "lucide-react";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
-import {
-  useSubscription,
-  useBillingPortal,
-  useStartTrial,
-} from "@/hooks/use-subscription";
+import { useUserMe, useBillingPortal } from "@/hooks/use-subscription";
+import { UpgradeModal } from "./upgrade-modal";
 import { cn } from "@/lib/utils";
 
 // ---------------------------------------------------------------------------
@@ -17,140 +14,137 @@ function pluralDays(n: number): string {
 }
 
 // ---------------------------------------------------------------------------
-// Component
+// TrialBanner
 // ---------------------------------------------------------------------------
 
 /**
- * TrialBanner
+ * Contextual billing banner at the top of the dashboard.
  *
- * Renders a contextual banner at the top of the dashboard:
- * - "trialing"  → countdown + "Upgrade Now" CTA
- * - "past_due"  → payment failure alert + "Update Payment" CTA
- * - "canceled"  → subscription ended + "Reactivate" CTA
- * - "none"      → invite to start a trial
+ * - "none"      → "Upgrade to Pro" → opens plan-selection modal
+ * - "trialing"  → countdown + "Manage Plan" (Stripe portal)
+ * - "past_due"  → payment failure + "Update Payment" (Stripe portal)
+ * - "canceled"  → "Reactivate" → opens plan-selection modal
  * - "active"    → renders nothing
  */
 export function TrialBanner() {
-  const { status, daysLeft, isLoading } = useSubscription();
+  const { isPro, status, daysLeft, isLoading } = useUserMe();
   const portalMutation = useBillingPortal();
-  const trialMutation = useStartTrial();
   const [dismissed, setDismissed] = useState(false);
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
-  if (isLoading || dismissed || status === "active" || status === "paused") {
+  // Hide entirely when user is confirmed pro (active subscription or trial)
+  if (isLoading || dismissed || isPro || status === "paused") {
     return null;
   }
 
-  if (status === "trialing") {
-    const isUrgent = daysLeft !== null && daysLeft <= 3;
-    return (
-      <BannerShell
-        variant={isUrgent ? "warning" : "info"}
-        icon={<Clock className="w-4 h-4 shrink-0" />}
-        onDismiss={() => setDismissed(true)}
-      >
-        <span className="font-medium">
-          {daysLeft === 0
-            ? "Your free trial ends today."
-            : daysLeft !== null
-              ? `${pluralDays(daysLeft)} left in your free trial.`
-              : "Your free trial is active."}
-        </span>
-        <span className="text-[13px] opacity-80 hidden sm:inline">
-          {" "}
-          Your card won't be charged until the trial ends.
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
-          onClick={() => portalMutation.mutate({})}
-          disabled={portalMutation.isPending}
-        >
-          <Zap className="w-3 h-3 mr-1" />
-          {portalMutation.isPending ? "Opening…" : "Manage Plan"}
-        </Button>
-      </BannerShell>
-    );
-  }
+  return (
+    <>
+      {/* Plan-selection modal — shared by all CTA paths that need it */}
+      <UpgradeModal open={upgradeOpen} onOpenChange={setUpgradeOpen} />
 
-  if (status === "past_due" || status === "unpaid") {
-    return (
-      <BannerShell
-        variant="error"
-        icon={<AlertTriangle className="w-4 h-4 shrink-0" />}
-        onDismiss={() => setDismissed(true)}
-      >
-        <span className="font-medium">Payment failed.</span>
-        <span className="text-[13px] opacity-80 hidden sm:inline">
-          {" "}
-          Some features may be restricted until your payment is resolved.
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
-          onClick={() => portalMutation.mutate({})}
-          disabled={portalMutation.isPending}
-        >
-          <CreditCard className="w-3 h-3 mr-1" />
-          {portalMutation.isPending ? "Opening…" : "Update Payment"}
-        </Button>
-      </BannerShell>
-    );
-  }
+      {status === "trialing" && (() => {
+        const isUrgent = daysLeft !== null && daysLeft <= 3;
+        return (
+          <BannerShell
+            variant={isUrgent ? "warning" : "info"}
+            icon={<Clock className="w-4 h-4 shrink-0" />}
+            onDismiss={() => setDismissed(true)}
+          >
+            <span className="font-medium">
+              {daysLeft === 0
+                ? "Your free trial ends today."
+                : daysLeft !== null
+                  ? `${pluralDays(daysLeft)} left in your free trial.`
+                  : "Your free trial is active."}
+            </span>
+            <span className="text-[13px] opacity-80 hidden sm:inline">
+              {" "}
+              Your card won't be charged until the trial ends.
+            </span>
+            <Button
+              size="sm"
+              variant="outline"
+              className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
+              onClick={() => portalMutation.mutate({})}
+              disabled={portalMutation.isPending}
+            >
+              <Zap className="w-3 h-3 mr-1" />
+              {portalMutation.isPending ? "Opening…" : "Manage Plan"}
+            </Button>
+          </BannerShell>
+        );
+      })()}
 
-  if (status === "canceled" || status === "incomplete_expired") {
-    return (
-      <BannerShell
-        variant="warning"
-        icon={<AlertTriangle className="w-4 h-4 shrink-0" />}
-        onDismiss={() => setDismissed(true)}
-      >
-        <span className="font-medium">Your subscription has ended.</span>
-        <span className="text-[13px] opacity-80 hidden sm:inline">
-          {" "}
-          Reactivate to regain full access.
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
-          onClick={() => trialMutation.mutate({})}
-          disabled={trialMutation.isPending}
+      {(status === "past_due" || status === "unpaid") && (
+        <BannerShell
+          variant="error"
+          icon={<AlertTriangle className="w-4 h-4 shrink-0" />}
+          onDismiss={() => setDismissed(true)}
         >
-          <Zap className="w-3 h-3 mr-1" />
-          {trialMutation.isPending ? "Redirecting…" : "Reactivate"}
-        </Button>
-      </BannerShell>
-    );
-  }
+          <span className="font-medium">Payment failed.</span>
+          <span className="text-[13px] opacity-80 hidden sm:inline">
+            {" "}
+            Some features may be restricted until your payment is resolved.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
+            onClick={() => portalMutation.mutate({})}
+            disabled={portalMutation.isPending}
+          >
+            <CreditCard className="w-3 h-3 mr-1" />
+            {portalMutation.isPending ? "Opening…" : "Update Payment"}
+          </Button>
+        </BannerShell>
+      )}
 
-  if (status === "none") {
-    return (
-      <BannerShell
-        variant="info"
-        icon={<Zap className="w-4 h-4 shrink-0" />}
-        onDismiss={() => setDismissed(true)}
-      >
-        <span className="font-medium">Start your 14-day free trial.</span>
-        <span className="text-[13px] opacity-80 hidden sm:inline">
-          {" "}
-          No charge until the trial ends. Cancel anytime.
-        </span>
-        <Button
-          size="sm"
-          variant="outline"
-          className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
-          onClick={() => trialMutation.mutate({})}
-          disabled={trialMutation.isPending}
+      {(status === "canceled" || status === "incomplete_expired") && (
+        <BannerShell
+          variant="warning"
+          icon={<AlertTriangle className="w-4 h-4 shrink-0" />}
+          onDismiss={() => setDismissed(true)}
         >
-          {trialMutation.isPending ? "Redirecting…" : "Start Free Trial"}
-        </Button>
-      </BannerShell>
-    );
-  }
+          <span className="font-medium">Your subscription has ended.</span>
+          <span className="text-[13px] opacity-80 hidden sm:inline">
+            {" "}
+            Reactivate to regain full access.
+          </span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="ml-auto shrink-0 h-7 text-[12px] font-semibold border-current hover:bg-white/20"
+            onClick={() => setUpgradeOpen(true)}
+          >
+            <Zap className="w-3 h-3 mr-1" />
+            Reactivate
+          </Button>
+        </BannerShell>
+      )}
 
-  return null;
+      {status === "none" && (
+        <BannerShell
+          variant="info"
+          icon={<Zap className="w-4 h-4 shrink-0" />}
+          onDismiss={() => setDismissed(true)}
+        >
+          <span className="font-medium">Unlock the full AI revenue platform.</span>
+          <span className="text-[13px] opacity-80 hidden sm:inline">
+            {" "}
+            14-day free trial — no charge until the trial ends.
+          </span>
+          <Button
+            size="sm"
+            className="ml-auto shrink-0 h-7 text-[12px] font-semibold bg-primary hover:bg-primary/90 text-primary-foreground border-0 shadow-sm"
+            onClick={() => setUpgradeOpen(true)}
+          >
+            <Zap className="w-3 h-3 mr-1" />
+            Upgrade to Pro
+          </Button>
+        </BannerShell>
+      )}
+    </>
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -24,9 +24,19 @@ export const usersTable = pgTable("users", {
   emailVerified: boolean("email_verified").notNull().default(false),
   emailVerificationToken: varchar("email_verification_token"),
   emailVerificationTokenExpiry: timestamp("email_verification_token_expiry", { withTimezone: true }),
+  // Stripe billing — denormalised for fast single-query access
+  // Updated atomically inside webhook transactions
+  isPro: boolean("is_pro").notNull().default(false),
+  subscriptionExpiry: timestamp("subscription_expiry", { withTimezone: true }),
+  stripeCustomerId: varchar("stripe_customer_id").unique(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow().$onUpdate(() => new Date()),
-});
+},
+(table) => [
+  // B-tree indexes for fast webhook look-ups (no full table scans)
+  index("idx_users_email").on(table.email),
+  index("idx_users_stripe_customer").on(table.stripeCustomerId),
+]);
 
 export type UpsertUser = typeof usersTable.$inferInsert;
 export type User = typeof usersTable.$inferSelect;
