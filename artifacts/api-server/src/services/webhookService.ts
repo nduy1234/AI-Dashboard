@@ -1,4 +1,5 @@
-import { db } from "../repositories/outboundRepository";
+import { eq } from "drizzle-orm";
+import { db, leadsTable, campaignsTable } from "@workspace/db";
 import {
   applyCampaignEventDelta,
   createAnalyticsEvent,
@@ -101,6 +102,35 @@ export async function processSendingWebhook(payload: {
   } catch (error) {
     console.warn(`[WebhookService] Failed to record signal for agent learning:`, error instanceof Error ? error.message : error);
     // Don't block webhook processing if agent signal recording fails
+  }
+
+  // ── Attribution: update lead status for reactivation campaigns ─────────────
+  // This drives the Dormant → Re-engaged → Meeting Booked funnel in real-time.
+  if (payload.leadId && payload.campaignId) {
+    const isReplyEvent = payload.eventType === "reply" || payload.eventType === "positive_reply";
+    const isMeetingEvent = payload.eventType === "meeting_booked";
+
+    if (isReplyEvent || isMeetingEvent) {
+      try {
+        // Only update if this lead belongs to a reactivation campaign
+        const [campaign] = await db
+          .select({ type: campaignsTable.type })
+          .from(campaignsTable)
+          .where(eq(campaignsTable.id, payload.campaignId));
+
+        if (campaign?.type === "reactivation") {
+          const newStatus = isMeetingEvent ? "meeting_booked" : "replied";
+          await db
+            .update(leadsTable)
+            .set({ status: newStatus, updatedAt: new Date() })
+            .where(eq(leadsTable.id, payload.leadId));
+
+          console.log(`[WebhookService] Attribution: lead ${payload.leadId} → ${newStatus} (reactivation campaign ${payload.campaignId})`);
+        }
+      } catch (attrErr) {
+        console.warn("[WebhookService] Attribution update failed:", attrErr instanceof Error ? attrErr.message : attrErr);
+      }
+    }
   }
 
   // Fire Slack notifications for high-value events (non-blocking)

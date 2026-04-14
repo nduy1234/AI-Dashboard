@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { BarChart3, DollarSign, CalendarCheck, Eye, Reply, TrendingUp, ArrowUpRight } from "lucide-react";
+import { BarChart3, DollarSign, CalendarCheck, Eye, Reply, TrendingUp } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import {
   getAnalyticsOverview,
@@ -15,11 +15,6 @@ import {
 import { ModernAreaChart, ModernLineChart, ModernBarChart, ModernRadialChart } from "@/components/molecules/charts";
 import { useState } from "react";
 
-const DEMO_MONTHS = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DEMO_OPEN   = [28, 34, 31, 39, 42, 45];
-const DEMO_REPLY  = [7, 11, 9, 14, 16, 18];
-const DEMO_MEET   = [3, 6, 4, 8, 10, 12];
-const DEMO_REV    = [4200, 7800, 5900, 11200, 14300, 17600];
 
 export default function Analytics() {
   const [activeTab, setActiveTab] = useState("overview");
@@ -37,26 +32,26 @@ export default function Analytics() {
   const meetHistory    = (overview?.meetingsHistory    ?? []) as { label: string; value: number }[];
   const revHistory     = (overview?.revenueHistory     ?? []) as { label: string; value: number }[];
 
-  const openLabels  = openHistory.length  ? openHistory.map(r => r.label)  : DEMO_MONTHS;
-  const openVals    = openHistory.length  ? openHistory.map(r => r.value)  : DEMO_OPEN;
-  const replyLabels = replyHistory.length ? replyHistory.map(r => r.label) : DEMO_MONTHS;
-  const replyVals   = replyHistory.length ? replyHistory.map(r => r.value) : DEMO_REPLY;
-  const meetLabels  = meetHistory.length  ? meetHistory.map(r => r.label)  : DEMO_MONTHS;
-  const meetVals    = meetHistory.length  ? meetHistory.map(r => r.value)  : DEMO_MEET;
-  const revLabels   = revHistory.length   ? revHistory.map(r => r.label)   : DEMO_MONTHS;
-  const revVals     = revHistory.length   ? revHistory.map(r => r.value)   : DEMO_REV;
+  const openLabels  = openHistory.map(r => r.label);
+  const openVals    = openHistory.map(r => r.value);
+  const replyLabels = replyHistory.map(r => r.label);
+  const replyVals   = replyHistory.map(r => r.value);
+  const meetLabels  = meetHistory.map(r => r.label);
+  const meetVals    = meetHistory.map(r => r.value);
+  const revLabels   = revHistory.map(r => r.label);
+  const revVals     = revHistory.map(r => r.value);
 
-  const emailsSent = overview?.emailsSent ?? 740;
-  const openRate   = overview?.openRate   ?? 45;
-  const replyRate  = overview?.replyRate  ?? 18;
-  const meetings   = overview?.meetingsBooked ?? 12;
+  const emailsSent = overview?.emailsSent ?? 0;
+  const openRate   = overview?.openRate   ?? 0;
+  const replyRate  = overview?.replyRate  ?? 0;
+  const meetings   = overview?.meetingsBooked ?? 0;
   const meetPct    = emailsSent ? Math.round((meetings / emailsSent) * 10000) / 100 : 0;
 
   const kpis = [
-    { label: "Open Rate",        value: `${openRate}%`,                                          icon: Eye,          color: "text-primary",  bg: "bg-primary/10",  trend: "+2.3%", positive: true  },
-    { label: "Reply Rate",       value: `${replyRate}%`,                                         icon: Reply,        color: "text-violet-500", bg: "bg-violet-500/10", trend: "+1.1%", positive: true  },
-    { label: "Meetings Booked",  value: meetings.toString(),                                     icon: CalendarCheck, color: "text-emerald-500", bg: "bg-emerald-500/10", trend: "+8",    positive: true  },
-    { label: "Revenue Generated", value: `$${((overview?.revenueGenerated ?? 17600) / 1000).toFixed(0)}k`, icon: DollarSign, color: "text-amber-500", bg: "bg-amber-500/10", trend: "+12%",  positive: true  },
+    { label: "Open Rate",         value: `${openRate}%`,                                                icon: Eye,           color: "text-primary",    bg: "bg-primary/10"     },
+    { label: "Reply Rate",        value: `${replyRate}%`,                                               icon: Reply,         color: "text-violet-500", bg: "bg-violet-500/10"  },
+    { label: "Meetings Booked",   value: meetings.toString(),                                           icon: CalendarCheck, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+    { label: "Revenue Generated", value: `$${((overview?.revenueGenerated ?? 0) / 1000).toFixed(1)}k`, icon: DollarSign,    color: "text-amber-500",  bg: "bg-amber-500/10"   },
   ];
 
   return (
@@ -84,9 +79,8 @@ export default function Analytics() {
                   <p className="text-2xl font-bold text-foreground">
                     {overviewLoading ? <span className="text-muted-foreground text-base">...</span> : kpi.value}
                   </p>
-                  <p className={`text-[11px] mt-1 font-medium flex items-center gap-0.5 ${kpi.positive ? "text-emerald-500" : "text-red-500"}`}>
-                    <ArrowUpRight className="w-3 h-3" />
-                    {kpi.trend} vs last month
+                  <p className="text-[11px] mt-1 font-medium text-muted-foreground">
+                    All time
                   </p>
                 </div>
                 <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 ${kpi.bg}`}>

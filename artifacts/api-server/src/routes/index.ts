@@ -16,6 +16,7 @@ import agentLogsRouter from "./agentLogs";
 import settingsRouter from "./settings";
 import outboundRouter from "./outbound";
 import statsRouter from "./stats";
+import reactivationRouter from "./reactivation";
 
 const router: IRouter = Router();
 
@@ -37,5 +38,6 @@ router.use(agentLogsRouter);
 router.use(settingsRouter);
 router.use(outboundRouter);
 router.use(statsRouter);
+router.use(reactivationRouter);
 
 export default router;

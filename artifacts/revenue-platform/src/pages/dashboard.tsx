@@ -35,26 +35,21 @@ function relativeTime(dateStr: string | null | undefined): string {
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
   return `${Math.floor(diff / 86400)}d ago`;
 }
-/* Fallback sparkline-style data when API returns nothing */
-const DEMO_MONTHS = ["Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-const DEMO_SENT   = [320, 450, 390, 580, 620, 740];
-const DEMO_REPLIES = [28, 42, 36, 67, 78, 102];
-const DEMO_LEADS   = [120, 180, 150, 230, 280, 310];
-const DEMO_MEETINGS = [8, 14, 10, 18, 22, 26];
-const DEMO_FUNNEL  = [
-  { stage: "Prospects",   count: 1200 },
-  { stage: "Emailed",     count: 740 },
-  { stage: "Replied",     count: 102 },
-  { stage: "Meetings",    count: 26 },
-  { stage: "Conversions", count: 9 },
+const EMPTY_FUNNEL = [
+  { stage: "Prospects",   count: 0 },
+  { stage: "Emailed",     count: 0 },
+  { stage: "Replied",     count: 0 },
+  { stage: "Meetings",    count: 0 },
+  { stage: "Conversions", count: 0 },
 ];
 
 export default function Dashboard() {
   const { data: stats, isLoading: statsLoading } = useDashboardStats();
   const { data: charts, isLoading: chartsLoading } = useDashboardCharts();
+
   const { data: agentFeed = [] } = useQuery({
     queryKey: ["stats", "agent-activity"],
-    queryFn: () => getAgentActivityFeed({ credentials: "include" }),
+    queryFn: () => getAgentActivityFeed({ limit: 50, credentials: "include" } as any),
     refetchInterval: 30000,
   });
 
@@ -73,30 +68,24 @@ export default function Dashboard() {
     );
   }
 
-  const displayStats = stats || {
-    totalProspects: 169, emailsSent: 54, replyRate: 0,
-    meetingsBooked: 8, reactivatedLeads: 2, websiteConversions: 3
+  const displayStats = stats ?? {
+    totalProspects: 0, emailsSent: 0, replyRate: 0,
+    meetingsBooked: 0, reactivatedLeads: 0, websiteConversions: 0,
   };
 
-  const outboundRaw   = (charts?.outboundPerformance ?? []) as { label: string; value: number; value2: number }[];
-  const pipelineRaw   = (charts?.pipelineGenerated   ?? []) as { label: string; value: number; value2: number }[];
-  const funnelRaw     = (charts?.conversionFunnel    ?? []) as { stage: string; count: number }[];
+  const outboundRaw = (charts?.outboundPerformance ?? []) as { label: string; value: number; value2: number }[];
+  const pipelineRaw = (charts?.pipelineGenerated   ?? []) as { label: string; value: number; value2: number }[];
+  const funnelRaw   = (charts?.conversionFunnel    ?? []) as { stage: string; count: number }[];
 
-  const months      = outboundRaw.length ? outboundRaw.map(r => r.label) : DEMO_MONTHS;
-  const sentData    = outboundRaw.length ? outboundRaw.map(r => r.value) : DEMO_SENT;
-  const repliesData = outboundRaw.length ? outboundRaw.map(r => r.value2) : DEMO_REPLIES;
+  const months      = outboundRaw.map(r => r.label);
+  const sentData    = outboundRaw.map(r => r.value);
+  const repliesData = outboundRaw.map(r => r.value2);
 
-  const pipMonths   = pipelineRaw.length ? pipelineRaw.map(r => r.label) : DEMO_MONTHS;
-  const leadsData   = pipelineRaw.length ? pipelineRaw.map(r => r.value) : DEMO_LEADS;
-  const meetData    = pipelineRaw.length ? pipelineRaw.map(r => r.value2) : DEMO_MEETINGS;
+  const pipMonths   = pipelineRaw.map(r => r.label);
+  const leadsData   = pipelineRaw.map(r => r.value);
+  const meetData    = pipelineRaw.map(r => r.value2);
 
-  const funnel      = funnelRaw.length ? funnelRaw : [
-    { stage: "Prospects",   count: 169 },
-    { stage: "Emailed",     count: 54  },
-    { stage: "Replied",     count: 0   },
-    { stage: "Meetings",    count: 8   },
-    { stage: "Conversions", count: 3   },
-  ];
+  const funnel      = funnelRaw.length ? funnelRaw : EMPTY_FUNNEL;
 
   const statCards = [
     { title: "Prospects",    value: displayStats.totalProspects.toLocaleString(),  icon: Users,             accent: "primary" as const, trend: stats?.trends?.totalProspects,    href: "/stats/prospects"     },
@@ -201,7 +190,7 @@ export default function Dashboard() {
               </div>
             </CardHeader>
             <CardContent className="pt-3 px-3 pb-4">
-              <div className="space-y-1">
+              <div className="max-h-[300px] overflow-y-auto space-y-1 pr-1 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border">
                 {agentFeed.length === 0 && (
                   <p className="text-center text-[11px] text-muted-foreground py-6">No agent activity yet. Agents will log actions here.</p>
                 )}
@@ -211,26 +200,21 @@ export default function Dashboard() {
                   const isWarning = item.status === "warning" || item.status === "error";
                   const agentLabel = item.agentName ?? (agentType === "email" ? "Email Agent" : agentType === "reactivation" ? "Reactivation Bot" : agentType === "conversion" ? "Conversion Agent" : "Outbound Agent");
                   return (
-                  <div key={item.id ?? i} className="flex items-start gap-2.5 p-2 rounded-md hover:bg-muted/50 transition-colors">
-                    <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
-                      isWarning ? "bg-amber-500/10" : "bg-emerald-500/10"
-                    }`}>
-                      <IconComp className={`w-3.5 h-3.5 ${isWarning ? "text-amber-500" : "text-emerald-500"}`} />
+                    <div key={item.id ?? i} className="flex items-start gap-2.5 p-2 rounded-md hover:bg-muted/50 transition-colors">
+                      <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 mt-0.5 ${
+                        isWarning ? "bg-amber-500/10" : "bg-emerald-500/10"
+                      }`}>
+                        <IconComp className={`w-3.5 h-3.5 ${isWarning ? "text-amber-500" : "text-emerald-500"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-semibold text-foreground/80 truncate">{agentLabel}</p>
+                        <p className="text-[11px] text-muted-foreground leading-tight truncate">{item.message ?? item.action ?? ""}</p>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground/60 shrink-0 pt-0.5">{relativeTime(item.createdAt ?? item.timestamp)}</span>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[11px] font-semibold text-foreground/80 truncate">{agentLabel}</p>
-                      <p className="text-[11px] text-muted-foreground leading-tight truncate">{item.message ?? item.action ?? ""}</p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground/60 shrink-0 pt-0.5">{relativeTime(item.createdAt ?? item.timestamp)}</span>
-                  </div>
                   );
                 })}
               </div>
-              <Link href="/outbound">
-                <Button variant="outline" size="sm" className="w-full mt-3 h-7 text-xs rounded-md border-border hover:bg-muted/60 text-muted-foreground">
-                  View all agent logs
-                </Button>
-              </Link>
             </CardContent>
           </Card>
         </motion.div>

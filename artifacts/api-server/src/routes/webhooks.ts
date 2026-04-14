@@ -34,12 +34,67 @@ router.post("/webhooks/sending/:provider", async (req, res): Promise<void> => {
 
   const normalized = normalizeSendingEvent(provider, body);
 
+  // Resend webhooks never include internal campaign/lead IDs — resolve them by
+  // checking three sources in priority order.
+  // Resend nests all fields under `data`: { type, data: { to, from, email_id, … } }
+  let { campaignId, leadId } = normalized;
+  if (campaignId === null && provider === "resend") {
+    const data = (body.data ?? {}) as Record<string, unknown>;
+
+    // 1. Most precise: look up by the Resend email_id stored in outbound_messages
+    const resendEmailId = typeof data.email_id === "string" ? data.email_id : null;
+    if (resendEmailId) {
+      const idMatch = await findCampaignByExternalMessageId(resendEmailId);
+      if (idMatch) {
+        campaignId = idMatch.campaignId;
+        leadId     = idMatch.leadId;
+        console.log(`[Webhook/Sending/Resend] resolved via email_id=${resendEmailId}  campaignId=${campaignId}  leadId=${leadId}`);
+      }
+    }
+
+    // 2. Fallback: look up by recipient email in outbound_messages / campaign_leads
+    if (campaignId === null) {
+      const toField = data.to;
+      const recipientEmail: string | null =
+        Array.isArray(toField) && typeof toField[0] === "string"
+          ? toField[0]
+          : typeof toField === "string"
+            ? toField
+            : null;
+
+      if (recipientEmail) {
+        const emailMatch = await findCampaignByRecipientEmail(recipientEmail);
+        if (emailMatch) {
+          campaignId = emailMatch.campaignId;
+          leadId     = emailMatch.leadId;
+          console.log(`[Webhook/Sending/Resend] resolved via recipient=${recipientEmail}  campaignId=${campaignId}  leadId=${leadId}`);
+        } else {
+          // 3. Last resort: when TEST_EMAIL_OVERRIDE redirects all sends to one inbox,
+          //    the recipient doesn't match any lead — fall back to most recently sent message
+          const testOverride = process.env.TEST_EMAIL_OVERRIDE;
+          if (testOverride && recipientEmail.toLowerCase() === testOverride.toLowerCase()) {
+            const fallback = await findMostRecentSentMessage();
+            if (fallback) {
+              campaignId = fallback.campaignId;
+              leadId     = fallback.leadId;
+              console.log(`[Webhook/Sending/Resend] TEST_EMAIL_OVERRIDE fallback  campaignId=${campaignId}  leadId=${leadId}`);
+            } else {
+              console.warn(`[Webhook/Sending/Resend] ⚠ TEST_EMAIL_OVERRIDE active but no sent messages found`);
+            }
+          } else {
+            console.warn(`[Webhook/Sending/Resend] ⚠ no campaign match for recipient ${recipientEmail}`);
+          }
+        }
+      }
+    }
+  }
+
   const result = await processSendingWebhook({
     provider,
     eventId: normalized.eventId,
     eventType: normalized.eventType,
-    campaignId: normalized.campaignId,
-    leadId: normalized.leadId,
+    campaignId,
+    leadId,
     body: normalized.payload,
     replyFromEmail: normalized.replyFromEmail,
     replySubject: normalized.replySubject,
@@ -75,7 +130,7 @@ router.post("/webhooks/crm/:provider", async (req, res): Promise<void> => {
 });
 
 import { parseCalcomWebhook, validateCalcomWebhook } from "../lib/calcomClient";
-import { findRecentCampaignForEmail, findMostRecentSentMessage } from "../repositories/outboundRepository";
+import { findCampaignByExternalMessageId, findCampaignByRecipientEmail, findRecentCampaignForEmail, findMostRecentSentMessage } from "../repositories/outboundRepository";
 import { fetchResendEmailContent } from "../lib/outboundIntegrations";
 
 router.post("/webhooks/calcom", async (req, res): Promise<void> => {

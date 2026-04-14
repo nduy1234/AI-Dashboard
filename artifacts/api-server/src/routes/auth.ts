@@ -1,4 +1,6 @@
 import * as oidc from "openid-client";
+import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { Router, type IRouter, type Request, type Response } from "express";
 import { z } from "zod";
 import {
@@ -24,8 +26,15 @@ import {
   getBearerToken,
   type SessionData,
 } from "../lib/auth";
-import { upsertUserFromClaims } from "../repositories/userRepository";
+import {
+  upsertUserFromClaims,
+  findUserByEmail,
+  createEmailUser,
+  updateUserOtp,
+  markEmailVerified,
+} from "../repositories/userRepository";
 import { onboardUserAfterLogin } from "../services/onboardingService";
+import { sendEmail, buildOtpEmailPayload } from "../lib/email";
 
 const OIDC_COOKIE_TTL = 10 * 60 * 1000;
 const REFRESH_COOKIE_TTL_MS = 100 * 365 * 24 * 60 * 60 * 1000; // 100 years
@@ -442,6 +451,253 @@ router.post("/mobile-auth/logout", async (req: Request, res: Response) => {
     await deleteSession(sid);
   }
   res.json(LogoutMobileSessionResponse.parse({ success: true }));
+});
+
+// ─── Email / Password Auth ────────────────────────────────────────────────────
+
+const OTP_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
+const BCRYPT_ROUNDS = 12;
+
+function generateOtp(): string {
+  // crypto.randomInt is cryptographically secure.
+  return crypto.randomInt(100_000, 1_000_000).toString();
+}
+
+const registerSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(8).max(128),
+  firstName: z.string().max(60).optional(),
+  lastName: z.string().max(60).optional(),
+  // Honeypot — must be absent or empty to pass bot check.
+  hp: z.string().max(0).optional(),
+});
+
+const emailLoginSchema = z.object({
+  email: z.string().email(),
+  password: z.string().min(1),
+});
+
+const verifyOtpSchema = z.object({
+  email: z.string().email(),
+  otp: z.string().length(6),
+});
+
+const resendOtpSchema = z.object({
+  email: z.string().email(),
+});
+
+router.post("/auth/register", async (req: Request, res: Response) => {
+  try {
+    const parsed = registerSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid registration details. Check your email and ensure your password is at least 8 characters." });
+      return;
+    }
+
+    const { email, password, firstName, lastName, hp } = parsed.data;
+
+    // Honeypot check — bots fill every field, humans leave it blank.
+    if (hp && hp.length > 0) {
+      res.status(201).json({ requiresVerification: true });
+      return;
+    }
+
+    const existing = await findUserByEmail(email);
+
+    if (existing) {
+      if (!existing.passwordHash) {
+        res.status(409).json({ error: "This email is linked to a Google account. Please use 'Sign in with Google'." });
+        return;
+      }
+      if (existing.emailVerified) {
+        res.status(409).json({ error: "An account with this email already exists. Please sign in." });
+        return;
+      }
+      // Unverified — refresh OTP and resend.
+      const otp = generateOtp();
+      const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+      const expiry = new Date(Date.now() + OTP_EXPIRY_MS);
+      await updateUserOtp(existing.id, otpHash, expiry);
+      const emailPayload = buildOtpEmailPayload(otp, existing.firstName);
+      await sendEmail({ to: email, ...emailPayload });
+      res.status(201).json({ requiresVerification: true });
+      return;
+    }
+
+    const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+    const expiry = new Date(Date.now() + OTP_EXPIRY_MS);
+
+    await createEmailUser({
+      email,
+      passwordHash,
+      firstName: firstName ?? null,
+      lastName: lastName ?? null,
+      emailVerificationToken: otpHash,
+      emailVerificationTokenExpiry: expiry,
+    });
+
+    const emailPayload = buildOtpEmailPayload(otp, firstName);
+    await sendEmail({ to: email, ...emailPayload });
+
+    res.status(201).json({ requiresVerification: true });
+  } catch (err) {
+    console.error("[auth/register] unexpected error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+router.post("/auth/login/email", async (req: Request, res: Response) => {
+  try {
+    const parsed = emailLoginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid credentials." });
+      return;
+    }
+
+    const { email, password } = parsed.data;
+    const user = await findUserByEmail(email);
+
+    // Constant-time comparison to avoid timing-based user enumeration.
+    const dummyHash = "$2a$12$invalidhashfortimingprotectiononly.........";
+    const passwordOk = await bcrypt.compare(
+      password,
+      user?.passwordHash ?? dummyHash,
+    );
+
+    if (!user || !user.passwordHash || !passwordOk) {
+      res.status(401).json({ error: "Invalid email or password." });
+      return;
+    }
+
+    if (!user.emailVerified) {
+      res.status(403).json({
+        error: "Please verify your email address before signing in.",
+        code: "email_not_verified",
+      });
+      return;
+    }
+
+    const sessionData: SessionData = {
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+        profileImageUrl: user.profileImageUrl,
+      },
+      access_token: "",
+    };
+
+    const sid = await createSession(sessionData);
+    const accessToken = signAccessToken(sessionData.user, sid);
+    const refreshToken = signRefreshToken(sessionData.user, sid);
+
+    setSessionCookie(res, sid);
+    setRefreshCookie(req, res, refreshToken);
+
+    res.json({
+      accessToken,
+      refreshToken,
+      tokenType: "Bearer",
+      user: sessionData.user,
+    });
+  } catch (err) {
+    console.error("[auth/login/email] unexpected error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+router.post("/auth/verify-otp", async (req: Request, res: Response) => {
+  try {
+    const parsed = verifyOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid request." });
+      return;
+    }
+
+    const { email, otp } = parsed.data;
+    const user = await findUserByEmail(email);
+
+    if (!user || !user.emailVerificationToken) {
+      res.status(400).json({ error: "Verification code is invalid or has expired." });
+      return;
+    }
+
+    if (user.emailVerificationTokenExpiry && user.emailVerificationTokenExpiry < new Date()) {
+      res.status(400).json({ error: "Verification code has expired. Please request a new one." });
+      return;
+    }
+
+    const otpValid = await bcrypt.compare(otp, user.emailVerificationToken);
+    if (!otpValid) {
+      res.status(400).json({ error: "Incorrect verification code. Please try again." });
+      return;
+    }
+
+    const verifiedUser = await markEmailVerified(user.id);
+    await onboardUserAfterLogin(verifiedUser.id, verifiedUser.firstName);
+
+    const sessionData: SessionData = {
+      user: {
+        id: verifiedUser.id,
+        email: verifiedUser.email,
+        firstName: verifiedUser.firstName,
+        lastName: verifiedUser.lastName,
+        profileImageUrl: verifiedUser.profileImageUrl,
+      },
+      access_token: "",
+    };
+
+    const sid = await createSession(sessionData);
+    const accessToken = signAccessToken(sessionData.user, sid);
+    const refreshToken = signRefreshToken(sessionData.user, sid);
+
+    setSessionCookie(res, sid);
+    setRefreshCookie(req, res, refreshToken);
+
+    res.json({
+      accessToken,
+      refreshToken,
+      tokenType: "Bearer",
+      user: sessionData.user,
+    });
+  } catch (err) {
+    console.error("[auth/verify-otp] unexpected error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
+});
+
+router.post("/auth/resend-otp", async (req: Request, res: Response) => {
+  try {
+    const parsed = resendOtpSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid email address." });
+      return;
+    }
+
+    const { email } = parsed.data;
+    const user = await findUserByEmail(email);
+
+    // Always return 200 to avoid user enumeration.
+    if (!user || user.emailVerified) {
+      res.json({ success: true });
+      return;
+    }
+
+    const otp = generateOtp();
+    const otpHash = await bcrypt.hash(otp, BCRYPT_ROUNDS);
+    const expiry = new Date(Date.now() + OTP_EXPIRY_MS);
+    await updateUserOtp(user.id, otpHash, expiry);
+    const emailPayload = buildOtpEmailPayload(otp, user.firstName);
+    await sendEmail({ to: email, ...emailPayload });
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[auth/resend-otp] unexpected error:", err);
+    res.status(500).json({ error: "Something went wrong. Please try again." });
+  }
 });
 
 export default router;

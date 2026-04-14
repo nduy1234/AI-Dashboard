@@ -20,8 +20,8 @@ async function initializeOpenai() {
   return openai;
 }
 
-import { db, leadsTable, campaignLeadsTable, campaignSignalsTable } from "@workspace/db";
-import { eq } from "drizzle-orm";
+import { db, leadsTable, campaignLeadsTable, campaignSignalsTable, outboundMessagesTable, sendingEventsTable } from "@workspace/db";
+import { and, eq } from "drizzle-orm";
 import type { ActionType, LeadBatch, ToolExecutionResult } from "../types.js";
 import { getApolloSourceEndpoints } from "../loadApolloEndpoints.js";
 
@@ -202,13 +202,32 @@ async function resendSend(to: string, subject: string, htmlBody: string): Promis
   const fromEmail = process.env.RESEND_FROM_EMAIL;
   if (!fromEmail) throw new Error("RESEND_FROM_EMAIL is not configured");
 
+  // reply_to MUST be set to the Resend receiving domain address so that when a
+  // prospect hits "Reply", their email lands on Resend's inbound mail server
+  // rather than bouncing back to the From address.  Without this the
+  // email.received webhook never fires.
+  const replyTo = process.env.RESEND_REPLY_TO ?? null;
+
+  const payload: Record<string, unknown> = {
+    from: fromEmail,
+    to: [to],
+    subject,
+    html: htmlBody,
+  };
+  if (replyTo) {
+    payload.reply_to = [replyTo];
+    console.log(`\x1b[36m[resend]\x1b[0m reply_to=${replyTo}`);
+  } else {
+    console.warn(`\x1b[33m[resend]\x1b[0m RESEND_REPLY_TO is not set — inbound replies will NOT trigger email.received webhook`);
+  }
+
   const data = await fetchJson<ResendResponse>("https://api.resend.com/emails", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${apiKey}`,
     },
-    body: JSON.stringify({ from: fromEmail, to: [to], subject, html: htmlBody }),
+    body: JSON.stringify(payload),
   });
 
   const messageId = data.id;
@@ -1329,6 +1348,54 @@ async function executeSendCampaignTool(
       } else {
         // Default: Resend
         messageId = await resendSend(targetEmail, subject, htmlBody);
+      }
+
+      // Persist to outbound_messages so Resend webhooks can be attributed to
+      // this campaign + lead via external_message_id or lead email lookup.
+      try {
+        // Upsert: insert if missing, then mark as sent
+        const existing = await db
+          .select({ id: outboundMessagesTable.id })
+          .from(outboundMessagesTable)
+          .where(and(
+            eq(outboundMessagesTable.campaignId, leadBatch.campaignId),
+            eq(outboundMessagesTable.leadId, lead.id),
+          ))
+          .limit(1);
+
+        if (existing.length === 0) {
+          await db.insert(outboundMessagesTable).values({
+            campaignId:    leadBatch.campaignId,
+            leadId:        lead.id,
+            provider:      tool,
+            messageType:   "email",
+            subject,
+            body,
+            promptVersion: "agent-v1",
+            status:        "ready",
+          });
+        }
+
+        await db
+          .update(outboundMessagesTable)
+          .set({ provider: tool, status: "sent", externalMessageId: messageId, sentAt: new Date() })
+          .where(and(
+            eq(outboundMessagesTable.campaignId, leadBatch.campaignId),
+            eq(outboundMessagesTable.leadId, lead.id),
+          ));
+
+        // Write a 'sent' event so the dashboard charts can aggregate by month
+        // without relying solely on campaigns.sent_count fallback
+        await db.insert(sendingEventsTable).values({
+          campaignId: leadBatch.campaignId,
+          leadId:     lead.id,
+          provider:   tool,
+          eventType:  "sent",
+          eventId:    messageId,
+          payload:    { source: "agent_tool" },
+        }).onConflictDoNothing();
+      } catch (dbErr) {
+        console.warn(`\x1b[33m[Tool]\x1b[0m outbound_messages write failed for lead ${lead.id}:`, dbErr instanceof Error ? dbErr.message : String(dbErr));
       }
 
       lead.status = "sent";

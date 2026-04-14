@@ -58,6 +58,31 @@ export default defineConfig({
         target: "http://localhost:5000",
         changeOrigin: true,
         secure: false,
+        // Return a clean 503 JSON instead of a noisy stack trace when the API
+        // server is starting up or restarting.
+        configure(proxy) {
+          proxy.on("error", (err, _req, res) => {
+            const isRefused =
+              "code" in err &&
+              (err.code === "ECONNREFUSED" || err.code === "ECONNRESET");
+            if (isRefused) {
+              // Suppress the full stack trace — just a one-liner is enough.
+              console.warn("[proxy] API server unreachable — waiting for restart…");
+            } else {
+              console.error("[proxy] unexpected error:", err.message);
+            }
+            if (
+              res &&
+              typeof (res as { headersSent?: boolean }).headersSent === "boolean" &&
+              !(res as { headersSent?: boolean }).headersSent
+            ) {
+              (res as { writeHead: (s: number, h: Record<string, string>) => void; end: (b: string) => void })
+                .writeHead(503, { "Content-Type": "application/json" });
+              (res as { end: (b: string) => void })
+                .end(JSON.stringify({ error: "API server is starting up, please retry." }));
+            }
+          });
+        },
       },
     },
   },

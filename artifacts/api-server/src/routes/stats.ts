@@ -11,9 +11,21 @@ import {
   sendingEventsTable,
   outboundMessagesTable,
   agentLogsTable,
+  emailRepliesTable,
+  campaignSequenceStepsTable,
 } from "@workspace/db";
 
 const router: IRouter = Router();
+
+const AGENT_NAME_MAP: Record<string, string> = {
+  outbound:      "Outbound Agent",
+  email:         "Email Agent",
+  reactivation:  "Reactivation Bot",
+  conversion:    "Conversion Agent",
+  meeting:       "Meeting Agent",
+  enrichment:    "Enrichment Agent",
+  qualification: "Qualification Agent",
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GET /stats/emails  — detailed email log for Emails Sent drill-down page
@@ -223,12 +235,38 @@ router.get("/stats/reply-rate", async (req, res): Promise<void> => {
     ? eq(campaignsTable.orgId, req.orgId)
     : eq(campaignsTable.userId, req.user!.id);
 
-  // Per-campaign breakdown
+  // ── KPI totals from campaigns table ────────────────────────────────────────
+  const [totals] = await db
+    .select({
+      totalSent:  sql<number>`coalesce(sum(sent_count), 0)::int`,
+      totalReply: sql<number>`coalesce(sum(reply_count), 0)::int`,
+    })
+    .from(campaignsTable)
+    .where(ownerFilter);
+
+  // ── Positive / negative reply breakdown from email_replies ─────────────────
+  // email_replies.sentiment is set to 'positive' for positive_reply events,
+  // 'negative' for unsubscribe-type replies, and 'unknown' otherwise.
+  const [sentimentCounts] = await db
+    .select({
+      positive: sql<number>`coalesce(sum(case when ${emailRepliesTable.sentiment}='positive' then 1 else 0 end),0)::int`,
+      negative: sql<number>`coalesce(sum(case when ${emailRepliesTable.sentiment}='negative' then 1 else 0 end),0)::int`,
+    })
+    .from(emailRepliesTable)
+    .leftJoin(campaignsTable, eq(campaignsTable.id, emailRepliesTable.campaignId))
+    .where(ownerFilter);
+
+  const totalSent       = totals?.totalSent  ?? 0;
+  const totalReplies    = totals?.totalReply ?? 0;
+  const positiveReplies = sentimentCounts?.positive ?? 0;
+  const negativeReplies = sentimentCounts?.negative ?? 0;
+
+  // ── Per-campaign breakdown ─────────────────────────────────────────────────
   const campaigns = await db
     .select({
-      id: campaignsTable.id,
-      name: campaignsTable.name,
-      sentCount: campaignsTable.sentCount,
+      id:         campaignsTable.id,
+      name:       campaignsTable.name,
+      sentCount:  campaignsTable.sentCount,
       replyCount: campaignsTable.replyCount,
     })
     .from(campaignsTable)
@@ -237,20 +275,19 @@ router.get("/stats/reply-rate", async (req, res): Promise<void> => {
 
   const campaignBreakdown = campaigns.map((c) => ({
     campaign: c.name,
-    sent: c.sentCount,
-    replies: c.replyCount,
-    rate:
-      c.sentCount > 0
-        ? Math.round((c.replyCount / c.sentCount) * 10000) / 100
-        : 0,
+    sent:     c.sentCount,
+    replies:  c.replyCount,
+    rate:     c.sentCount > 0
+      ? Math.round((c.replyCount / c.sentCount) * 10000) / 100
+      : 0,
   }));
 
-  // Weekly reply-rate history via sending_events
+  // ── Weekly reply-rate history via sending_events ───────────────────────────
   const weeklyRaw = await db
     .select({
-      week: sql<string>`to_char(date_trunc('week', ${sendingEventsTable.occurredAt}), 'Mon DD')`,
+      week:    sql<string>`to_char(date_trunc('week', ${sendingEventsTable.occurredAt}), 'Mon DD')`,
       replies: sql<number>`count(case when ${sendingEventsTable.eventType}='reply' then 1 end)::int`,
-      sent: sql<number>`count(case when ${sendingEventsTable.eventType}='sent' then 1 end)::int`,
+      sent:    sql<number>`count(case when ${sendingEventsTable.eventType}='sent'  then 1 end)::int`,
     })
     .from(sendingEventsTable)
     .leftJoin(campaignsTable, eq(campaignsTable.id, sendingEventsTable.campaignId))
@@ -264,11 +301,19 @@ router.get("/stats/reply-rate", async (req, res): Promise<void> => {
     .orderBy(sql`date_trunc('week', ${sendingEventsTable.occurredAt})`);
 
   const historyLabels = weeklyRaw.map((r) => r.week);
-  const historyRate = weeklyRaw.map((r) =>
+  const historyRate   = weeklyRaw.map((r) =>
     r.sent > 0 ? Math.round((r.replies / r.sent) * 10000) / 100 : 0,
   );
 
-  res.json({ campaignBreakdown, historyLabels, historyRate });
+  res.json({
+    totalSent,
+    totalReplies,
+    positiveReplies,
+    negativeReplies,
+    campaignBreakdown,
+    historyLabels,
+    historyRate,
+  });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,9 +344,45 @@ router.get("/stats/reactivations", async (req, res): Promise<void> => {
   const totalReplies = reactivationCampaigns.reduce((s, c) => s + (c.replyCount ?? 0), 0);
   const totalMeetings = reactivationCampaigns.reduce((s, c) => s + (c.meetingsBooked ?? 0), 0);
 
+  // Sequence step breakdown across all reactivation campaigns
+  const campaignIds = reactivationCampaigns.map((c) => c.id);
+  let sequenceStepBreakdown: Record<string, number> = {};
+  let sequenceStepConversions: Array<{ step: number; sent: number; replied: number }> = [];
+
+  if (campaignIds.length > 0) {
+    const allSteps = await db
+      .select({
+        stepNumber: campaignSequenceStepsTable.stepNumber,
+        status: campaignSequenceStepsTable.status,
+        leadId: campaignSequenceStepsTable.leadId,
+      })
+      .from(campaignSequenceStepsTable)
+      .where(sql`${campaignSequenceStepsTable.campaignId} = ANY(ARRAY[${sql.join(campaignIds.map((id) => sql`${id}`), sql`, `)}]::int[])`);
+
+    for (const s of allSteps) {
+      sequenceStepBreakdown[s.status] = (sequenceStepBreakdown[s.status] ?? 0) + 1;
+    }
+
+    // Per-step sent/replied counts (join with lead status)
+    const stepNums = [...new Set(allSteps.map((s) => s.stepNumber))].sort((a, b) => a - b);
+    for (const stepNum of stepNums) {
+      const stepRows = allSteps.filter((s) => s.stepNumber === stepNum);
+      const sentRows = stepRows.filter((s) => s.status === "sent");
+      const sentLeadIds = sentRows.map((s) => s.leadId);
+      let replied = 0;
+      if (sentLeadIds.length > 0) {
+        const repliedLeads = reactivatedLeads.filter(
+          (l) => sentLeadIds.includes(l.id) && (l.status === "replied" || l.status === "meeting_booked"),
+        );
+        replied = repliedLeads.length;
+      }
+      sequenceStepConversions.push({ step: stepNum, sent: sentRows.length, replied });
+    }
+  }
+
   res.json({
     stats: {
-      dormantLeads: reactivatedLeads.filter((l) => l.status === "new" || l.status === "emailed").length,
+      dormantLeads: reactivatedLeads.filter((l) => l.status === "new" || l.status === "contacted").length,
       campaigns: reactivationCampaigns.length,
       reEngaged: reactivatedLeads.filter(
         (l) => l.status === "replied" || l.status === "meeting_booked",
@@ -310,6 +391,8 @@ router.get("/stats/reactivations", async (req, res): Promise<void> => {
       totalSent,
       totalReplies,
     },
+    sequenceStepBreakdown,
+    sequenceStepConversions,
     leads: reactivatedLeads.map((l) => ({
       id: l.id,
       firstName: l.firstName,
@@ -320,6 +403,8 @@ router.get("/stats/reactivations", async (req, res): Promise<void> => {
       status: l.status,
       engagementScore: l.engagementScore,
       lastContactDate: l.lastContactDate,
+      crmId: (l as any).crmId ?? null,
+      lostReason: (l as any).lostReason ?? null,
       notes: l.notes,
     })),
   });
@@ -404,12 +489,18 @@ router.get("/stats/agent-activity", async (req, res): Promise<void> => {
 
   res.json(
     logs.map((l) => ({
+      // Schema-contract fields (agent, timestamp) — kept for API compatibility
       id: l.id,
       agent: l.agentType,
       action: l.action,
       status: l.status,
       details: l.details,
       timestamp: l.timestamp,
+      // Additional fields consumed by the dashboard UI
+      agentType: l.agentType,
+      agentName: AGENT_NAME_MAP[l.agentType?.toLowerCase()] ?? l.agentType,
+      message: l.details ?? l.action,
+      createdAt: l.timestamp,
     })),
   );
 });

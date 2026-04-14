@@ -18,13 +18,6 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useQuery } from "@tanstack/react-query";
 import { listLeads, getListLeadsQueryKey } from "@workspace/api-client-react";
 
-const SOURCE_COLORS: Record<string, string> = {
-  Apollo:   "bg-blue-500/10 text-blue-400 border-blue-500/20",
-  Clay:     "bg-violet-500/10 text-violet-400 border-violet-500/20",
-  LinkedIn: "bg-cyan-500/10 text-cyan-400 border-cyan-500/20",
-  RB2B:     "bg-amber-500/10 text-amber-400 border-amber-500/20",
-};
-
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   new:            { label: "New",            color: "bg-blue-500/10 text-blue-400" },
   contacted:      { label: "Contacted",      color: "bg-yellow-500/10 text-yellow-400" },
@@ -58,13 +51,6 @@ export default function ProspectsDetail() {
 
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const paginated = filtered.slice((page - 1) * PER_PAGE, page * PER_PAGE);
-
-  // Derive source breakdown from live data
-  const sourceCounts = leads.reduce((acc: Record<string, number>, l: any) => {
-    const src = l.source ?? "Unknown";
-    acc[src] = (acc[src] ?? 0) + 1;
-    return acc;
-  }, {} as Record<string, number>);
 
   // 7-day threshold for "new this week"
   const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
@@ -143,22 +129,6 @@ export default function ProspectsDetail() {
         ))}
       </div>
 
-      {/* Source breakdown */}
-      {Object.keys(sourceCounts).length > 0 && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-          {Object.entries(sourceCounts).slice(0, 4).map(([src, count]) => (
-            <Card key={src} className="overflow-hidden">
-              <CardContent className="p-3 flex items-center justify-between gap-2">
-                <div>
-                  <p className="text-[11px] text-muted-foreground">Source</p>
-                  <p className="text-[13px] font-semibold text-foreground mt-0.5">{src}</p>
-                </div>
-                <Badge className={`text-[12px] font-bold px-2 py-1 ${SOURCE_COLORS[src] ?? "bg-muted/60 text-muted-foreground"}`}>{count}</Badge>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      )}
 
       {/* Table */}
       <Card className="overflow-hidden">

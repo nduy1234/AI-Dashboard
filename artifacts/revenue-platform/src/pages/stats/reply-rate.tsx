@@ -170,7 +170,7 @@ export default function ReplyRateDetail() {
           {campaignBreakdown.length === 0 ? (
             <p className="text-[13px] text-muted-foreground text-center py-4">No campaign data yet.</p>
           ) : (
-          <div className="space-y-2">
+          <div className="max-h-[300px] overflow-y-auto pr-1 space-y-2 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-muted/20 [&::-webkit-scrollbar-thumb]:bg-muted-foreground/20 [&::-webkit-scrollbar-thumb]:rounded-full">
             {campaignBreakdown.map((c: any) => (
               <div key={c.name} className="flex items-center gap-3">
                 <div className="flex-1 min-w-0">

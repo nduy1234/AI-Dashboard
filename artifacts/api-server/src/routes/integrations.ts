@@ -11,6 +11,7 @@ import { getOwnerContext, ownerScope } from "../security/ownerContext";
 import { testSlackConnection } from "../lib/slackClient";
 import { testCalcomConnection } from "../lib/calcomClient";
 import { loadApolloEndpointsConfig } from "@workspace/agent-orchestration";
+import { testHubspotConnection } from "../lib/hubspotClient";
 
 const router: IRouter = Router();
 
@@ -22,7 +23,14 @@ router.get("/integrations", async (req, res): Promise<void> => {
   const integrations = await db.select().from(integrationsTable)
     .where(ownerFilter(req))
     .orderBy(integrationsTable.name);
-  res.json(ListIntegrationsResponse.parse(integrations));
+  // Zod schema has config as .optional() (accepts undefined, not null).
+  // DB rows default config to null — coerce to undefined before parsing.
+  const normalized = integrations.map((i) => ({
+    ...i,
+    config:     i.config     ?? undefined,
+    lastSyncAt: i.lastSyncAt ?? undefined,
+  }));
+  res.json(ListIntegrationsResponse.parse(normalized));
 });
 
 /**
@@ -92,6 +100,71 @@ router.post("/integrations/slack/test", async (req, res): Promise<void> => {
     res.status(400).json({
       ok: false,
       error: error instanceof Error ? error.message : "Slack connectivity test failed",
+    });
+  }
+});
+
+/**
+ * POST /api/v1/integrations/hubspot/connect
+ * Validates a HubSpot Private App Token, then stores status + portal metadata
+ * on the hubspot integration row for the current owner.
+ * Body: { apiKey: string }
+ */
+router.post("/integrations/hubspot/connect", async (req, res): Promise<void> => {
+  try {
+    const owner = getOwnerContext(req);
+    const { apiKey } = req.body as { apiKey?: string };
+
+    if (!apiKey || typeof apiKey !== "string" || apiKey.trim().length < 10) {
+      res.status(400).json({ ok: false, error: "A valid HubSpot Private App Token is required" });
+      return;
+    }
+
+    const result = await testHubspotConnection(apiKey.trim());
+
+    if (!result.ok) {
+      // Persist error status so the UI can show "Reconnect"
+      await db
+        .update(integrationsTable)
+        .set({ status: "error", lastSyncAt: new Date() })
+        .where(and(eq(integrationsTable.type, "hubspot"), ownerScope(integrationsTable, owner)));
+
+      res.status(400).json({ ok: false, error: result.error });
+      return;
+    }
+
+    const [integration] = await db
+      .update(integrationsTable)
+      .set({
+        status: "connected",
+        apiKeyConfigured: true,
+        lastSyncAt: new Date(),
+        config: {
+          portalId: result.portalId,
+          hubDomain: result.hubDomain,
+          /** Store token so background scan jobs can read it */
+          apiKey: apiKey.trim(),
+          dailyOutreachLimit: 100,
+        },
+      })
+      .where(and(eq(integrationsTable.type, "hubspot"), ownerScope(integrationsTable, owner)))
+      .returning();
+
+    if (!integration) {
+      res.status(404).json({ ok: false, error: "HubSpot integration record not found — run the seed script" });
+      return;
+    }
+
+    res.json({
+      ok: true,
+      integration: UpdateIntegrationResponse.parse({ ...integration, config: undefined }),
+      portalId: result.portalId,
+      hubDomain: result.hubDomain,
+    });
+  } catch (error) {
+    res.status(400).json({
+      ok: false,
+      error: error instanceof Error ? error.message : "HubSpot connectivity test failed",
     });
   }
 });

@@ -1,4 +1,5 @@
 import { startOutboundWorker } from "./lib/outboundQueue";
+import { startReactivationWorkers } from "./services/reactivationService";
 import { setGlobalDispatcher, Agent } from "undici";
 
 // Apply global workaround for Node.js native fetch IPv6 timeout issues 
@@ -11,5 +12,8 @@ if (!process.env.REDIS_URL) {
 
 startOutboundWorker();
 console.log("Outbound worker started.");
+
+startReactivationWorkers();
+console.log("Reactivation workers started.");
 
 process.stdin.resume();

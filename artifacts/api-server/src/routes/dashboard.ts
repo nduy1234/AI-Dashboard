@@ -5,8 +5,8 @@ import { GetDashboardStatsResponse, GetDashboardChartsResponse } from "@workspac
 
 const router: IRouter = Router();
 
-function computeTrend(curr: number, prev: number): number | null {
-  if (prev === 0) return null; // no baseline period — don't show a trend badge
+function computeTrend(curr: number, prev: number): number | undefined {
+  if (prev === 0) return undefined; // no baseline period — omit trend badge
   return Math.round(((curr - prev) / prev) * 1000) / 10;
 }
 
@@ -145,8 +145,12 @@ router.get("/dashboard/charts", async (req, res): Promise<void> => {
     : null;
 
   // ── Outbound Performance: sent vs replies per month (last 6 months) ─────────
+  // Primary source: sending_events (granular event log).
+  // Fallback: campaigns table counters grouped by launch/creation month
+  //   — covers deployments where the outbound engine updates campaign counters
+  //     directly without writing individual sending_events rows.
   type OutboundRow = { month: string; sent: string; replies: string };
-  const outboundRows = idsClause
+  const outboundEventRows = idsClause
     ? await db.execute<OutboundRow>(sql`
         SELECT to_char(date_trunc('month', occurred_at), 'Mon YY') AS month,
                count(*) FILTER (WHERE event_type = 'sent')  AS sent,
@@ -154,18 +158,40 @@ router.get("/dashboard/charts", async (req, res): Promise<void> => {
         FROM   sending_events
         WHERE  campaign_id = ANY(${idsClause})
           AND  occurred_at >= ${cut6m}
+          AND  event_type IN ('sent', 'reply')
         GROUP  BY date_trunc('month', occurred_at)
         ORDER  BY date_trunc('month', occurred_at)
       `)
     : { rows: [] as OutboundRow[] };
 
-  const outboundPerformance = outboundRows.rows.map((r) => ({
+  let outboundPerformance = outboundEventRows.rows.map((r) => ({
     label:  r.month,
     value:  Number(r.sent),
     value2: Number(r.replies),
   }));
 
+  // Fallback: aggregate campaign counters by the month the campaign was active
+  if (outboundPerformance.length === 0 && campaignIds.length > 0) {
+    const campOutRows = await db.execute<OutboundRow>(sql`
+      SELECT to_char(date_trunc('month', coalesce(launched_at, created_at)), 'Mon YY') AS month,
+             sum(sent_count)::text  AS sent,
+             sum(reply_count)::text AS replies
+      FROM   campaigns
+      WHERE  ${campaignFilter}
+        AND  coalesce(launched_at, created_at) >= ${cut6m}
+      GROUP  BY date_trunc('month', coalesce(launched_at, created_at))
+      ORDER  BY date_trunc('month', coalesce(launched_at, created_at))
+    `);
+    outboundPerformance = campOutRows.rows.map((r) => ({
+      label:  r.month,
+      value:  Number(r.sent),
+      value2: Number(r.replies),
+    }));
+  }
+
   // ── Pipeline Generated: new leads vs meetings per month ─────────────────────
+  // Primary source for meetings: sending_events meeting_booked events.
+  // Fallback: campaigns.meetings_booked counters grouped by campaign month.
   type LeadRow    = { month: string; leads: string };
   type MeetingRow = { month: string; meetings: string };
 
@@ -179,7 +205,7 @@ router.get("/dashboard/charts", async (req, res): Promise<void> => {
     ORDER  BY date_trunc('month', created_at)
   `);
 
-  const meetingRows = idsClause
+  const meetingEventRows = idsClause
     ? await db.execute<MeetingRow>(sql`
         SELECT to_char(date_trunc('month', occurred_at), 'Mon YY') AS month,
                count(*)::int AS meetings
@@ -192,7 +218,25 @@ router.get("/dashboard/charts", async (req, res): Promise<void> => {
       `)
     : { rows: [] as MeetingRow[] };
 
-  const meetingMap = new Map(meetingRows.rows.map((r) => [r.month, Number(r.meetings)]));
+  // Build meeting map: prefer event-level data, fall back to campaign counters
+  let meetingMap: Map<string, number>;
+  if (meetingEventRows.rows.length > 0) {
+    meetingMap = new Map(meetingEventRows.rows.map((r) => [r.month, Number(r.meetings)]));
+  } else if (campaignIds.length > 0) {
+    const campMeetRows = await db.execute<MeetingRow>(sql`
+      SELECT to_char(date_trunc('month', coalesce(launched_at, created_at)), 'Mon YY') AS month,
+             sum(meetings_booked)::text AS meetings
+      FROM   campaigns
+      WHERE  ${campaignFilter}
+        AND  coalesce(launched_at, created_at) >= ${cut6m}
+      GROUP  BY date_trunc('month', coalesce(launched_at, created_at))
+      ORDER  BY date_trunc('month', coalesce(launched_at, created_at))
+    `);
+    meetingMap = new Map(campMeetRows.rows.map((r) => [r.month, Number(r.meetings)]));
+  } else {
+    meetingMap = new Map();
+  }
+
   const pipelineGenerated = leadRows.rows.map((r) => ({
     label:  r.month,
     value:  Number(r.leads),
