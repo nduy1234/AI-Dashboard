@@ -9,7 +9,7 @@
 
 import { EventEmitter } from "node:events";
 import { Queue, Worker } from "bullmq";
-import { eq, inArray } from "drizzle-orm";
+import { eq, inArray, and, desc } from "drizzle-orm";
 import {
   db,
   leadsTable,
@@ -120,11 +120,19 @@ async function processScanJob(scanJobId: number): Promise<void> {
   const userId = scanJob.userId ?? "system";
   const orgId = scanJob.orgId ?? null;
 
-  // Fetch HubSpot API key from integrations table
+  // Fetch HubSpot API key from integrations table (scoped to the requesting user)
   const [integration] = await db
     .select()
     .from(integrationsTable)
-    .where(eq(integrationsTable.type, "hubspot"));
+    .where(
+      and(
+        eq(integrationsTable.type, "hubspot"),
+        eq(integrationsTable.userId, userId),
+        eq(integrationsTable.apiKeyConfigured, true),
+      ),
+    )
+    .orderBy(desc(integrationsTable.id))
+    .limit(1);
 
   const config = integration?.config as Record<string, unknown> | null;
   const apiKey = typeof config?.apiKey === "string" ? config.apiKey : null;
@@ -266,11 +274,16 @@ async function processScanJob(scanJobId: number): Promise<void> {
       orgId,
     });
 
-    // Update integration lastSyncAt
+    // Update integration lastSyncAt (scoped to user)
     await db
       .update(integrationsTable)
       .set({ lastSyncAt: new Date() })
-      .where(eq(integrationsTable.type, "hubspot"));
+      .where(
+        and(
+          eq(integrationsTable.type, "hubspot"),
+          eq(integrationsTable.userId, userId),
+        ),
+      );
 
   } catch (err) {
     const errMsg = err instanceof Error ? err.message : String(err);
@@ -432,7 +445,14 @@ async function checkAndIncrementDailyLimit(orgId: number | null): Promise<boolea
   const [integration] = await db
     .select({ config: integrationsTable.config })
     .from(integrationsTable)
-    .where(eq(integrationsTable.type, "hubspot"));
+    .where(
+      and(
+        eq(integrationsTable.type, "hubspot"),
+        eq(integrationsTable.apiKeyConfigured, true),
+      ),
+    )
+    .orderBy(desc(integrationsTable.id))
+    .limit(1);
 
   const config = integration?.config as Record<string, unknown> | null;
   const limit = Number(config?.dailyOutreachLimit) || 100;

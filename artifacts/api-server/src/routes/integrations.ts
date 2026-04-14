@@ -23,13 +23,31 @@ router.get("/integrations", async (req, res): Promise<void> => {
   const integrations = await db.select().from(integrationsTable)
     .where(ownerFilter(req))
     .orderBy(integrationsTable.name);
-  // Zod schema has config as .optional() (accepts undefined, not null).
-  // DB rows default config to null — coerce to undefined before parsing.
-  const normalized = integrations.map((i) => ({
-    ...i,
-    config:     i.config     ?? undefined,
-    lastSyncAt: i.lastSyncAt ?? undefined,
-  }));
+
+  const normalized = integrations.map((i) => {
+    const rawConfig = (i.config ?? {}) as Record<string, unknown>;
+
+    // Strip the raw apiKey from all integration configs before sending to the
+    // frontend — replace with a masked token hint so the UI can show which key
+    // is active without exposing the secret.
+    const { apiKey, ...safeConfig } = rawConfig as { apiKey?: string; [k: string]: unknown };
+    const configForClient: Record<string, unknown> | undefined =
+      Object.keys(rawConfig).length > 0
+        ? {
+            ...safeConfig,
+            ...(apiKey
+              ? { maskedToken: `${apiKey.slice(0, 10)}…${apiKey.slice(-4)}` }
+              : {}),
+          }
+        : undefined;
+
+    return {
+      ...i,
+      config:     configForClient,
+      lastSyncAt: i.lastSyncAt ?? undefined,
+    };
+  });
+
   res.json(ListIntegrationsResponse.parse(normalized));
 });
 

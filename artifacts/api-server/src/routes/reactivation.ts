@@ -416,4 +416,99 @@ router.get("/reactivation/settings", async (req, res): Promise<void> => {
   });
 });
 
+// ── POST /reactivation/seed-test-data (DEV ONLY) ─────────────────────────────
+// Directly inserts realistic closed-lost leads into the DB, bypassing HubSpot.
+// Use this when the connected HubSpot portal has no deals yet.
+
+router.post("/reactivation/seed-test-data", async (req, res): Promise<void> => {
+  if (process.env.NODE_ENV === "production") {
+    res.status(403).json({ error: "Not available in production" });
+    return;
+  }
+
+  const owner = getOwnerContext(req);
+  const count = Math.min(Number((req.body as { count?: number }).count) || 10, 50);
+
+  const companies = [
+    { company: "Acme Corp", domain: "acme-corp.io", industry: "SaaS" },
+    { company: "GrowthLab", domain: "growthlab.com", industry: "Marketing" },
+    { company: "Velocity AI", domain: "velocity.ai", industry: "Artificial Intelligence" },
+    { company: "Scalify", domain: "scalify.io", industry: "E-commerce" },
+    { company: "Nexus Systems", domain: "nexussystems.com", industry: "Enterprise Software" },
+    { company: "BlueRidge Tech", domain: "blueridge.tech", industry: "Consulting" },
+    { company: "Orbit Analytics", domain: "orbitanalytics.io", industry: "Data Analytics" },
+    { company: "PeakFlow", domain: "peakflow.co", industry: "FinTech" },
+    { company: "Cloudwave", domain: "cloudwave.dev", industry: "Cloud Infrastructure" },
+    { company: "Meridian SaaS", domain: "meridiansaas.com", industry: "SaaS" },
+  ];
+
+  const firstNames = ["Alex", "Sarah", "Marcus", "Emma", "Jordan", "Priya", "Luca", "Nadia", "Tyler", "Zoe"];
+  const lastNames  = ["Turner", "Kim", "Chen", "Patel", "Rivera", "Sharma", "Rossi", "Volkov", "Brooks", "Martin"];
+  const titles     = ["VP of Engineering", "CTO", "CEO", "Head of Growth", "Director of Sales", "COO", "Founder", "Head of Product"];
+  const lostReasons = [
+    "Budget constraints — revisit Q3",
+    "Chose competitor (price)",
+    "Wrong timing — raising Series A",
+    "Feature gap: missing Salesforce integration",
+    "Internal freeze on new tools",
+    "Went with in-house solution",
+    "Champion left the company",
+    "Too expensive at current stage",
+    "Decided to delay until next fiscal year",
+    "Prioritized different initiative",
+  ];
+  const dealStages = ["closedlost", "closedlost", "closedlost", "contractsent", "presentationscheduled"];
+  const dealValues = [1500, 2800, 4200, 6500, 9800, 12000, 18500, 24000, 35000, 5000];
+
+  const toInsert: typeof leadsTable.$inferInsert[] = [];
+  const usedEmails = new Set<string>();
+
+  for (let i = 0; i < count; i++) {
+    const co = companies[i % companies.length]!;
+    const fn = firstNames[i % firstNames.length]!;
+    const ln = lastNames[(i + 3) % lastNames.length]!;
+    const email = `${fn.toLowerCase()}.${ln.toLowerCase()}@${co.domain}`;
+
+    if (usedEmails.has(email)) continue;
+    usedEmails.add(email);
+
+    const closedDaysAgo = 45 + (i * 7 % 120); // 45–165 days ago
+    toInsert.push({
+      firstName: fn,
+      lastName: ln,
+      email,
+      company: co.company,
+      title: titles[i % titles.length],
+      status: "new",
+      source: "reactivation",
+      industry: co.industry,
+      dealStage: dealStages[i % dealStages.length],
+      dealValue: dealValues[i % dealValues.length],
+      lostReason: lostReasons[i % lostReasons.length],
+      crmId: `test-crm-${Date.now()}-${i}`,
+      lastContactDate: new Date(Date.now() - closedDaysAgo * 24 * 60 * 60 * 1000),
+      userId: owner.userId,
+      orgId: owner.orgId,
+    });
+  }
+
+  if (toInsert.length === 0) {
+    res.json({ ok: true, seeded: 0, message: "No new leads to insert (all duplicates)" });
+    return;
+  }
+
+  await db.insert(leadsTable).values(toInsert);
+
+  await db.insert(agentLogsTable).values({
+    agentType: "reactivation",
+    action: "seed_test_data",
+    status: "completed",
+    details: `Seeded ${toInsert.length} test reactivation leads (dev mode)`,
+    userId: owner.userId,
+    orgId: owner.orgId,
+  });
+
+  res.json({ ok: true, seeded: toInsert.length, leads: toInsert.map((l) => ({ email: l.email, company: l.company, dealValue: l.dealValue, lostReason: l.lostReason })) });
+});
+
 export default router;

@@ -102,8 +102,15 @@ export default function Reactivation() {
   const hubspotRow = (integrations as any[]).find((i: any) =>
     i.name?.toLowerCase().includes("hubspot"),
   );
-  const isHubspotConnected = hubspotRow?.status === "connected" || hubspotRow?.apiKeyConfigured;
-  const isHubspotError = hubspotRow?.status === "error";
+  // Treat both "connected" status and apiKeyConfigured flag as connected —
+  // apiKeyConfigured=true is persisted in the DB so survives logout/login.
+  const isHubspotConnected =
+    hubspotRow?.status === "connected" ||
+    hubspotRow?.apiKeyConfigured === true ||
+    settings?.hubspotStatus === "connected";
+  const isHubspotError = hubspotRow?.status === "error" || settings?.hubspotStatus === "error";
+  const maskedToken: string | undefined =
+    (hubspotRow?.config as any)?.maskedToken ?? undefined;
 
   const dormantLeads = leads?.filter((l) => l.source === "reactivation") ?? [];
   const reactivationCampaigns = campaigns?.filter((c) => c.type === "reactivation") ?? [];
@@ -323,10 +330,15 @@ export default function Reactivation() {
                     <div>
                       <p className="font-medium">HubSpot</p>
                       <p className="text-xs text-muted-foreground">
-                        {isHubspotConnected
-                          ? `Connected${settings?.hubspotPortalId ? ` · Portal ${settings.hubspotPortalId}` : ""}`
+                        {isHubspotConnected && !isHubspotError
+                          ? [
+                              settings?.hubspotPortalId ? `Portal ${settings.hubspotPortalId}` : null,
+                              maskedToken ? `Token: ${maskedToken}` : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ") || "Connected"
                           : isHubspotError
-                            ? "Connection error — reconnect required"
+                            ? "Token expired or revoked — enter a new token"
                             : "Connect to scan for dormant leads"}
                       </p>
                     </div>
@@ -340,13 +352,20 @@ export default function Reactivation() {
                         <AlertCircle className="h-3 w-3" /> Error
                       </Badge>
                     )}
-                    <Button
-                      variant={isHubspotConnected && !isHubspotError ? "outline" : "default"}
-                      size="sm"
-                      onClick={() => setShowConnectModal(true)}
-                    >
-                      {isHubspotConnected && !isHubspotError ? "Reconnect" : "Connect"}
-                    </Button>
+                    {isHubspotConnected && !isHubspotError ? (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-muted-foreground hover:text-foreground"
+                        onClick={() => setShowConnectModal(true)}
+                      >
+                        Rotate Key
+                      </Button>
+                    ) : (
+                      <Button size="sm" onClick={() => setShowConnectModal(true)}>
+                        {isHubspotError ? "Reconnect" : "Connect"}
+                      </Button>
+                    )}
                   </div>
                 </div>
 
@@ -941,11 +960,20 @@ export default function Reactivation() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Key className="h-5 w-5 text-primary" />
-              Connect HubSpot
+              {isHubspotConnected && !isHubspotError ? "Rotate HubSpot Token" : "Connect HubSpot"}
             </DialogTitle>
             <DialogDescription>
-              Enter your HubSpot Private App Token. Create one in HubSpot → Settings → Integrations → Private Apps.
-              Required scopes: <code className="text-xs bg-muted px-1 rounded">crm.objects.deals.read</code> and <code className="text-xs bg-muted px-1 rounded">crm.objects.contacts.read</code>
+              {isHubspotConnected && !isHubspotError ? (
+                <>
+                  Your token <span className="font-mono text-xs">{maskedToken ?? "•••"}</span> is active.
+                  Only enter a new token below if you want to replace it.
+                </>
+              ) : (
+                <>
+                  Enter your HubSpot Private App Token. Create one in HubSpot → Settings → Integrations → Private Apps.
+                  Required scopes: <code className="text-xs bg-muted px-1 rounded">crm.objects.deals.read</code> and <code className="text-xs bg-muted px-1 rounded">crm.objects.contacts.read</code>
+                </>
+              )}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">

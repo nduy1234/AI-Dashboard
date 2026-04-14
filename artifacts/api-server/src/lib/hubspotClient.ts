@@ -1,15 +1,20 @@
 /**
- * HubSpot Private App Token client.
- * Uses the HubSpot CRM v3 REST API — no OAuth redirect required.
- * Token is stored encrypted-at-rest via integrations.apiKeyConfigured flag.
+ * HubSpot Private App Token client — CRM v3 REST API.
+ * No OAuth redirect required; token stored server-side only.
  *
- * Key endpoints used:
- *   GET  /crm/v3/oauth/access-tokens/:token  → validate & get portal info
- *   POST /crm/v3/objects/deals/search         → fetch deals with filters
- *   GET  /crm/v3/objects/contacts/:id         → fetch contact details
+ * Endpoints used:
+ *   GET  /account-info/v3/details                       → validate token + portal info
+ *   POST /crm/v3/objects/deals/search                   → filter dormant/lost deals
+ *   POST /crm/v3/associations/deals/contacts/batch/read → resolve deal→contact IDs (bulk)
+ *   POST /crm/v3/objects/contacts/batch/read            → fetch contact details (bulk)
+ *
+ * The batch approach eliminates the N+1 pattern: for 100 deals it uses 3 total
+ * API calls instead of 201.
  */
 
 const HUBSPOT_BASE = "https://api.hubapi.com";
+
+// ── Types ─────────────────────────────────────────────────────────────────────
 
 export interface ScanFilters {
   inactivityDays: number;
@@ -28,11 +33,9 @@ export interface HubSpotDeal {
     closed_lost_reason?: string;
     hs_lastmodifieddate?: string;
     hs_is_closed_won?: string;
-    /** Associated contact HubSpot ID */
-    associatedContactId?: string;
     hubspot_owner_id?: string;
   };
-  /** Hydrated from associated contacts */
+  /** Hydrated from POST /crm/v3/objects/contacts/batch/read */
   contact?: HubSpotContact;
 }
 
@@ -52,24 +55,17 @@ export interface HubSpotContact {
   };
 }
 
-export interface HubSpotPortalInfo {
-  portalId: number;
-  hub_id: number;
-  app_id: number;
-  hub_domain: string;
-  token_type: string;
-}
+// ── Internal fetch helper ─────────────────────────────────────────────────────
 
 async function hubspotFetch(
   path: string,
   apiKey: string,
   options: RequestInit = {},
 ): Promise<Response> {
-  const url = `${HUBSPOT_BASE}${path}`;
-  const res = await fetch(url, {
+  const res = await fetch(`${HUBSPOT_BASE}${path}`, {
     ...options,
     headers: {
-      "Authorization": `Bearer ${apiKey}`,
+      Authorization: `Bearer ${apiKey}`,
       "Content-Type": "application/json",
       ...(options.headers ?? {}),
     },
@@ -77,159 +73,288 @@ async function hubspotFetch(
   return res;
 }
 
+// ── Connection test ───────────────────────────────────────────────────────────
+
 /**
- * Validates a HubSpot Private App Token and returns portal metadata.
- * Uses the token-info endpoint which is the canonical validation method.
+ * Validates a HubSpot Private App Token via GET /account-info/v3/details.
+ * The OAuth /oauth/v1/access-tokens endpoint rejects Private App Tokens;
+ * this endpoint accepts any valid token type.
  */
 export async function testHubspotConnection(
   apiKey: string,
 ): Promise<{ ok: boolean; portalId: number; hubDomain: string; error?: string }> {
-  const res = await hubspotFetch(`/oauth/v1/access-tokens/${apiKey}`, apiKey);
+  const res = await hubspotFetch("/account-info/v3/details", apiKey);
 
   if (res.status === 200) {
-    const data = (await res.json()) as HubSpotPortalInfo;
-    return { ok: true, portalId: data.portalId ?? data.hub_id, hubDomain: data.hub_domain };
+    const data = (await res.json()) as { portalId?: number; uiDomain?: string };
+    return { ok: true, portalId: data.portalId ?? 0, hubDomain: data.uiDomain ?? "" };
   }
-
   if (res.status === 401) {
-    return { ok: false, portalId: 0, hubDomain: "", error: "Invalid API key — check your Private App Token" };
+    return { ok: false, portalId: 0, hubDomain: "", error: "Invalid or revoked Private App Token" };
   }
-
+  if (res.status === 403) {
+    return {
+      ok: false, portalId: 0, hubDomain: "",
+      error: "Token lacks required scopes — enable crm.objects.deals.read and crm.objects.contacts.read on the Private App",
+    };
+  }
   const body = await res.text().catch(() => "");
-  return { ok: false, portalId: 0, hubDomain: "", error: `HubSpot returned ${res.status}: ${body.slice(0, 200)}` };
+  return { ok: false, portalId: 0, hubDomain: "", error: `HubSpot ${res.status}: ${body.slice(0, 200)}` };
+}
+
+// ── Deals search ──────────────────────────────────────────────────────────────
+
+interface DealSearchResult {
+  id: string;
+  properties: HubSpotDeal["properties"];
+}
+
+interface DealSearchResponse {
+  results: DealSearchResult[];
+  paging?: { next?: { after: string } };
 }
 
 /**
- * Fetches dormant / lost deals from HubSpot using the CRM search API.
- *
- * Exclusion logic (Collateral Damage Filter):
- *   - Skips any deal where dealstage = 'closedwon'
- *   - Skips any deal whose associated contact has hs_lead_status = 'CUSTOMER'
- *
- * @param apiKey   HubSpot Private App Token
- * @param filters  Scan criteria from the UI
+ * POST /crm/v3/objects/deals/search
+ * Returns up to `pageLimit` deals matching the dormancy filters.
+ * Paginates automatically using the cursor returned in paging.next.after.
  */
-export async function fetchDormantDeals(
+async function searchDeals(
   apiKey: string,
   filters: ScanFilters,
-): Promise<HubSpotDeal[]> {
-  const cutoffDate = new Date();
-  cutoffDate.setDate(cutoffDate.getDate() - filters.inactivityDays);
-  const cutoffIso = cutoffDate.toISOString();
+): Promise<DealSearchResult[]> {
+  const cutoffIso = new Date(
+    Date.now() - filters.inactivityDays * 24 * 60 * 60 * 1000,
+  ).toISOString();
 
-  const filterGroups: object[] = [
-    {
-      filters: [
-        // Not closed won
-        { propertyName: "dealstage", operator: "NEQ", value: "closedwon" },
-        // Last modified before the inactivity cutoff
-        { propertyName: "hs_lastmodifieddate", operator: "LT", value: cutoffIso },
-      ],
-    },
+  const baseFilters: object[] = [
+    { propertyName: "dealstage", operator: "NEQ", value: "closedwon" },
   ];
 
+  // Use closedate for closed-lost deals (semantic: how long since it was lost).
+  // For open/stalled deals fall back to hs_lastmodifieddate.
+  if (filters.inactivityDays > 0) {
+    const isClosedLostStage =
+      filters.dealStage === "closedlost" || !filters.dealStage;
+    const dateProperty = isClosedLostStage ? "closedate" : "hs_lastmodifieddate";
+    baseFilters.push({ propertyName: dateProperty, operator: "LT", value: cutoffIso });
+  }
+
   if (filters.minDealValue && filters.minDealValue > 0) {
-    (filterGroups[0] as any).filters.push({
-      propertyName: "amount",
-      operator: "GTE",
-      value: String(filters.minDealValue),
-    });
+    baseFilters.push({ propertyName: "amount", operator: "GTE", value: String(filters.minDealValue) });
+  }
+  if (filters.dealStage && filters.dealStage !== "all" && filters.dealStage !== "") {
+    baseFilters.push({ propertyName: "dealstage", operator: "EQ", value: filters.dealStage });
   }
 
-  if (filters.dealStage && filters.dealStage !== "all") {
-    (filterGroups[0] as any).filters.push({
-      propertyName: "dealstage",
-      operator: "EQ",
-      value: filters.dealStage,
-    });
-  }
-
-  const body = {
-    filterGroups,
-    properties: [
-      "dealname",
-      "amount",
-      "dealstage",
-      "closedate",
-      "closed_lost_reason",
-      "hs_lastmodifieddate",
-      "hs_is_closed_won",
-      "hubspot_owner_id",
-    ],
-    associations: ["contacts"],
-    limit: Math.min(filters.maxResults ?? 500, 100),
-    after: 0,
-  };
-
-  const allDeals: HubSpotDeal[] = [];
-  let after: number | undefined = undefined;
   const pageLimit = Math.min(filters.maxResults ?? 500, 500);
+  const allDeals: DealSearchResult[] = [];
+  let after: string | undefined;
 
   do {
-    const pageBody = after ? { ...body, after } : body;
+    const body: Record<string, unknown> = {
+      filterGroups: [{ filters: baseFilters }],
+      properties: [
+        "dealname",
+        "amount",
+        "dealstage",
+        "closedate",
+        "closed_lost_reason",
+        "hs_lastmodifieddate",
+        "hs_is_closed_won",
+        "hubspot_owner_id",
+        "pipeline",
+      ],
+      limit: Math.min(100, pageLimit - allDeals.length),
+    };
+    if (after) body.after = after;
+
     const res = await hubspotFetch("/crm/v3/objects/deals/search", apiKey, {
       method: "POST",
-      body: JSON.stringify(pageBody),
+      body: JSON.stringify(body),
     });
 
     if (!res.ok) {
       const err = await res.text().catch(() => "");
-      throw new Error(`HubSpot deals search failed (${res.status}): ${err.slice(0, 200)}`);
+      throw new Error(`POST /crm/v3/objects/deals/search → ${res.status}: ${err.slice(0, 200)}`);
     }
 
-    const data = (await res.json()) as {
-      results: HubSpotDeal[];
-      paging?: { next?: { after: number } };
-    };
-
-    // Hydrate each deal with its first associated contact
-    const hydratedDeals = await Promise.all(
-      data.results.map(async (deal) => {
-        const assocRes = await hubspotFetch(
-          `/crm/v3/objects/deals/${deal.id}/associations/contacts`,
-          apiKey,
-        ).catch(() => null);
-
-        if (!assocRes?.ok) return deal;
-
-        const assocData = (await assocRes.json()) as { results: Array<{ id: string }> };
-        const contactId = assocData.results?.[0]?.id;
-        if (!contactId) return deal;
-
-        const contactRes = await hubspotFetch(
-          `/crm/v3/objects/contacts/${contactId}?properties=firstname,lastname,email,jobtitle,company,phone,hs_lead_status,industry,numemployees`,
-          apiKey,
-        ).catch(() => null);
-
-        if (!contactRes?.ok) return deal;
-
-        const contact = (await contactRes.json()) as HubSpotContact;
-
-        // EXCLUSION: skip contacts that are already customers
-        if (contact.properties.hs_lead_status === "CUSTOMER") {
-          return null;
-        }
-
-        return { ...deal, contact };
-      }),
-    );
-
-    const validDeals = hydratedDeals.filter((d): d is HubSpotDeal => d !== null);
-    allDeals.push(...validDeals);
-
+    const data = (await res.json()) as DealSearchResponse;
+    allDeals.push(...data.results);
     after = data.paging?.next?.after;
   } while (after && allDeals.length < pageLimit);
 
   return allDeals.slice(0, pageLimit);
 }
 
-/** Map HubSpot deal stage IDs to human-readable labels used in UI dropdowns */
+// ── Bulk association resolution ───────────────────────────────────────────────
+
+/**
+ * POST /crm/v3/associations/deals/contacts/batch/read
+ * Resolves deal IDs → contact IDs in a single call (up to 1000 inputs per call).
+ * Returns a map of dealId → first associated contactId.
+ */
+async function batchReadDealContactAssociations(
+  apiKey: string,
+  dealIds: string[],
+): Promise<Map<string, string>> {
+  const dealToContact = new Map<string, string>();
+  if (dealIds.length === 0) return dealToContact;
+
+  // HubSpot batch limit: 1000 per call
+  const BATCH = 1000;
+  for (let i = 0; i < dealIds.length; i += BATCH) {
+    const slice = dealIds.slice(i, i + BATCH);
+    const res = await hubspotFetch(
+      "/crm/v3/associations/deals/contacts/batch/read",
+      apiKey,
+      {
+        method: "POST",
+        body: JSON.stringify({ inputs: slice.map((id) => ({ id })) }),
+      },
+    );
+
+    if (!res.ok) {
+      // Non-fatal: if associations call fails we just skip contacts for this batch
+      console.warn(`[HubSpot] associations batch failed (${res.status}) — contacts will be missing for ${slice.length} deals`);
+      continue;
+    }
+
+    const data = (await res.json()) as {
+      results: Array<{ from: { id: string }; to: Array<{ id: string }> }>;
+    };
+
+    for (const row of data.results) {
+      if (row.to.length > 0 && row.from?.id) {
+        dealToContact.set(row.from.id, row.to[0]!.id);
+      }
+    }
+  }
+
+  return dealToContact;
+}
+
+// ── Bulk contact fetch ────────────────────────────────────────────────────────
+
+const CONTACT_PROPERTIES = [
+  "firstname",
+  "lastname",
+  "email",
+  "jobtitle",
+  "company",
+  "phone",
+  "hs_lead_status",
+  "industry",
+  "numemployees",
+];
+
+/**
+ * POST /crm/v3/objects/contacts/batch/read
+ * Fetches full contact records for up to 100 IDs per call.
+ * Returns a map of contactId → HubSpotContact.
+ */
+async function batchReadContacts(
+  apiKey: string,
+  contactIds: string[],
+): Promise<Map<string, HubSpotContact>> {
+  const contactMap = new Map<string, HubSpotContact>();
+  if (contactIds.length === 0) return contactMap;
+
+  // HubSpot batch/read limit: 100 per call
+  const BATCH = 100;
+  for (let i = 0; i < contactIds.length; i += BATCH) {
+    const slice = contactIds.slice(i, i + BATCH);
+    const res = await hubspotFetch("/crm/v3/objects/contacts/batch/read", apiKey, {
+      method: "POST",
+      body: JSON.stringify({
+        inputs: slice.map((id) => ({ id })),
+        properties: CONTACT_PROPERTIES,
+      }),
+    });
+
+    if (!res.ok) {
+      console.warn(`[HubSpot] contacts batch/read failed (${res.status}) for ${slice.length} contacts`);
+      continue;
+    }
+
+    const data = (await res.json()) as { results: HubSpotContact[] };
+    for (const contact of data.results) {
+      contactMap.set(contact.id, contact);
+    }
+  }
+
+  return contactMap;
+}
+
+// ── Main export ───────────────────────────────────────────────────────────────
+
+/**
+ * Fetches dormant / lost deals from HubSpot using three efficient bulk calls:
+ *
+ *  1. POST /crm/v3/objects/deals/search          — get filtered deals
+ *  2. POST /crm/v3/associations/deals/contacts/  — resolve all deal→contact IDs
+ *        batch/read                                 in one request
+ *  3. POST /crm/v3/objects/contacts/batch/read   — fetch all contact details
+ *                                                   in batches of 100
+ *
+ * Collateral Damage exclusions (applied before returning):
+ *   - dealstage = closedwon  (filtered at search level)
+ *   - contact hs_lead_status = CUSTOMER  (filtered after contact hydration)
+ */
+export async function fetchDormantDeals(
+  apiKey: string,
+  filters: ScanFilters,
+): Promise<HubSpotDeal[]> {
+  // Step 1 — search deals
+  const deals = await searchDeals(apiKey, filters);
+  if (deals.length === 0) return [];
+
+  const dealIds = deals.map((d) => d.id);
+
+  // Step 2 — bulk-resolve deal → contact associations
+  const dealToContact = await batchReadDealContactAssociations(apiKey, dealIds);
+
+  const contactIds = [...new Set(dealToContact.values())];
+
+  // Step 3 — bulk-fetch all contact details
+  const contactMap = await batchReadContacts(apiKey, contactIds);
+
+  // Assemble results, applying the customer exclusion filter
+  const results: HubSpotDeal[] = [];
+  for (const deal of deals) {
+    const contactId = dealToContact.get(deal.id);
+    if (!contactId) {
+      // No associated contact — include deal without contact data
+      results.push(deal);
+      continue;
+    }
+
+    const contact = contactMap.get(contactId);
+    if (!contact) {
+      results.push(deal);
+      continue;
+    }
+
+    // COLLATERAL DAMAGE FILTER: skip existing customers
+    if (contact.properties.hs_lead_status === "CUSTOMER") {
+      continue;
+    }
+
+    results.push({ ...deal, contact });
+  }
+
+  return results;
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Map HubSpot deal stage IDs to human-readable labels for UI dropdowns */
 export const HUBSPOT_STAGE_LABELS: Record<string, string> = {
   appointmentscheduled: "Appointment Scheduled",
-  qualifiedtobuy: "Qualified to Buy",
+  qualifiedtobuy:       "Qualified to Buy",
   presentationscheduled: "Presentation Scheduled",
   decisionmakerboughtin: "Decision Maker Bought In",
-  contractsent: "Contract Sent",
-  closedwon: "Closed Won",
-  closedlost: "Closed Lost",
+  contractsent:         "Contract Sent",
+  closedwon:            "Closed Won",
+  closedlost:           "Closed Lost",
 };

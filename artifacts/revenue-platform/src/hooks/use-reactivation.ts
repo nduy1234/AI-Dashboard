@@ -47,6 +47,7 @@ export interface ReactivationSettings {
 // ── HubSpot connect ────────────────────────────────────────────────────────────
 
 export function useConnectHubspot() {
+  const queryClient = useQueryClient();
   return useMutation({
     mutationFn: async (apiKey: string) => {
       const res = await fetch(`${API_BASE}/integrations/hubspot/connect`, {
@@ -58,6 +59,13 @@ export function useConnectHubspot() {
       const json = await res.json();
       if (!res.ok || !json.ok) throw new Error(json.error ?? "HubSpot connection failed");
       return json as { ok: boolean; portalId: number; hubDomain: string };
+    },
+    onSuccess: () => {
+      // Refresh the integrations list and settings so the UI reflects
+      // "Connected" immediately — and on every subsequent login the DB
+      // already has status=connected so no re-entry is needed.
+      queryClient.invalidateQueries({ queryKey: ["/api/v1/integrations"] });
+      queryClient.invalidateQueries({ queryKey: ["reactivation-settings"] });
     },
   });
 }
